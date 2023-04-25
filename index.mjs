@@ -16,7 +16,7 @@ const koboldApiUrl = "http://127.0.0.1:5000";
 
 const generationConfig = {
   n: 1,
-  max_context_length: 2010 - 210,
+  max_context_length: 2048,
   max_length: 200,
   rep_pen: 1.18,
   temperature: 0.7,
