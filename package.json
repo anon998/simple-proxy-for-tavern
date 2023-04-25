@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "sentencepiece-js": "^1.1.0"
+  }
+}
