@@ -23,5 +23,7 @@ Leave Context Size high so Tavern doesn't truncate the messages, we're doing tha
 
 Tavern settings like Temperature, etc. are ignored, edit generationConfig in the code instead.
 
+The last prompt is saved as prompt.txt, edit the buildLlamaPrompt function to experiment with the format.
+
 ## Tavern Settings Screenshot
 ![settings screenshot](./settings.png)
