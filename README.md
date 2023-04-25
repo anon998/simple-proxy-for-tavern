@@ -19,5 +19,9 @@ In Tavern:
 + Change Jailbreak Prompt to "{{char}}\n{{user}}".
 + Leave only NSFW Toggle and Send Jailbreak active.
 
+Leave Context Size high so Tavern doesn't truncate the messages, we're doing that in this script.
+
+Tavern settings like Temperature, etc. are ignored, edit generationConfig in the code instead.
+
 ## Tavern Settings Screenshot
 ![settings screenshot](./settings.png)

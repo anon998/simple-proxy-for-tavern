@@ -459,5 +459,6 @@ httpServer.listen(port, host, (error) => {
     process.exit(1);
   }
 
-  console.log(`listening on http://${host}:${port}`);
+  console.log(`Listening on http://${host}:${port}`);
+  console.log(`Using these Kobold generation settings: `, generationConfig);
 });
