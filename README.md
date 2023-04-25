@@ -3,6 +3,9 @@
 ``` sh
 npm install
 node index.mjs
+
+# Or this to reload automatically when editing the file:
+# npx nodemon index.mjs
 ```
 
 ## Tavern Settings
