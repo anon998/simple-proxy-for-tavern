@@ -324,12 +324,18 @@ const truncateGeneratedText = (text) => {
 const findCharacterNames = (args) => {
   let assistant = 'Bot';
   let user = 'You';
-  const lastMessage = args.messages[args.messages.length - 1];
+  let lastMessageIndex = args.messages.length - 1;
+  let lastMessage = args.messages[lastMessageIndex];
+  if (lastMessage.role === 'system' && lastMessage.content === 'IMPERSONATION_PROMPT') {
+    lastMessageIndex = args.messages.length - 2;
+    lastMessage = args.messages[lastMessageIndex];
+  }
   if (lastMessage.role === 'system') {
     const lines = lastMessage.content.split('\n');
     if (lines.length === 2) {
       assistant = lines[0].trim();
       user = lines[1].trim();
+      args.messages.splice(lastMessageIndex, 1);
     }
   }
   return { user, assistant };
