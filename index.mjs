@@ -30,7 +30,7 @@ const generationConfig = {
   sampler_order: [0, 1, 2, 3, 4, 5, 6],
   prompt: "",
   quiet: false,
-  // stopping_strings: ['\n#'],
+  // stopping_strings: ["\n###"],
   // ban_eos_token: true,
 };
 
@@ -227,7 +227,7 @@ const jsonParse = (req, res) =>
   });
 
 const getModels = async (req, res) => {
-  const resp = await fetch(`${koboldApiUrl}/api/latest/model`);
+  const resp = await fetch(`${koboldApiUrl}/api/v1/model`);
   const { result: modelName } = await resp.json();
 
   const result = {
@@ -374,7 +374,7 @@ const getChatCompletions = async (req, res) => {
 
   fs.writeFileSync("./prompt.txt", promptText);
 
-  const resp = await fetch(`${koboldApiUrl}/api/latest/generate/`, {
+  const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
