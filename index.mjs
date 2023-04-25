@@ -1,6 +1,6 @@
 import http from "http";
 import url from "url";
-import fs from 'fs';
+import fs from "fs";
 
 import { SentencePieceProcessor } from "sentencepiece-js";
 import BodyParser from "body-parser";
@@ -322,16 +322,19 @@ const truncateGeneratedText = (text) => {
 };
 
 const findCharacterNames = (args) => {
-  let assistant = 'Bot';
-  let user = 'You';
+  let assistant = "Bot";
+  let user = "You";
   let lastMessageIndex = args.messages.length - 1;
   let lastMessage = args.messages[lastMessageIndex];
-  if (lastMessage.role === 'system' && lastMessage.content === 'IMPERSONATION_PROMPT') {
+  if (
+    lastMessage.role === "system" &&
+    lastMessage.content === "IMPERSONATION_PROMPT"
+  ) {
     lastMessageIndex = args.messages.length - 2;
     lastMessage = args.messages[lastMessageIndex];
   }
-  if (lastMessage.role === 'system') {
-    const lines = lastMessage.content.split('\n');
+  if (lastMessage.role === "system") {
+    const lines = lastMessage.content.split("\n");
     if (lines.length === 2) {
       assistant = lines[0].trim();
       user = lines[1].trim();
