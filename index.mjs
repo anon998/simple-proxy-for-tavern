@@ -33,10 +33,9 @@ const generationConfig = {
   prompt: "",
   quiet: false,
   stopping_strings: ["\n###"],
-  ban_eos_token: false,
 };
 
-let isOoba = null;
+let backendType = null;
 let dropUnfinishedSentences = true;
 
 const buildLlamaPrompt = ({ user, assistant, messages }) => {
@@ -231,21 +230,42 @@ const jsonParse = (req, res) =>
     });
   });
 
-const checkIsOoba = async () => {
-  if (isOoba === null) {
-    const resp = await fetch(`${koboldApiUrl}/api/v1/info/version`);
+const checkWhichBackend = async () => {
+  if (backendType === null) {
+    let resp = await fetch(`${koboldApiUrl}/api/v1/info/version`);
     if (resp.status === 200) {
-      isOoba = false;
+      backendType = "kobold";
     } else if (resp.status == 404) {
-      isOoba = true;
+      backendType = "ooba";
     }
-    console.log({ isOoba });
+
+    resp = await fetch(`${koboldApiUrl}/api/extra/version`);
+    if (resp.ok) {
+      const json = await resp.json();
+      if (json.result === "KoboldCpp") {
+        backendType = "koboldcpp";
+      }
+    }
   }
 
-  if (!isOoba) {
-    delete generationConfig["stopping_strings"];
-    delete generationConfig["ban_eos_token"];
+  if (backendType === "kobold") {
+    if ("stopping_strings" in generationConfig) {
+      console.log(
+        `Removing 'stopping_strings' since Kobold doesn't support it.`
+      );
+      delete generationConfig["stopping_strings"];
+    }
+  } else if (backendType === "koboldcpp") {
+    if ("stopping_strings" in generationConfig) {
+      console.log(
+        `Swapping 'stopping_strings' for 'stop_sequence' for KoboldCpp.`
+      );
+      generationConfig["stop_sequence"] = generationConfig["stopping_strings"];
+      delete generationConfig["stopping_strings"];
+    }
   }
+
+  console.log({ backendType });
 };
 
 const getModels = async (req, res) => {
@@ -381,6 +401,16 @@ const findCharacterNames = (args) => {
   return { user, assistant };
 };
 
+const workAroundTavernDelay = (req, res) => {
+  // I don't know why there's this delay in Tavern...
+  const tmp = JSON.stringify({
+    choices: [{ delta: { content: "" } }],
+  });
+  for (let i = 0; i < 10; i++) {
+    res.write(`data: ${tmp}\n\n`, "utf-8");
+  }
+};
+
 const koboldGenerate = async (req, res, genParams) => {
   const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
     method: "POST",
@@ -427,6 +457,7 @@ const oobaGenerateStream = (req, res, genParams) =>
         ...corsHeaders,
       });
       res.flushHeaders();
+      workAroundTavernDelay(req, res);
 
       ws.send(JSON.stringify(genParams));
     };
@@ -467,14 +498,17 @@ const koboldGenerateStream = (req, res, genParams) =>
       ...corsHeaders,
     });
     res.flushHeaders();
+    workAroundTavernDelay(req, res);
 
-    const firstChunkLength = genParams.max_length;
-    const nextChunkLength = genParams.max_length;
+    const nextChunkLength =
+      backendType === "koboldcpp" ? 8 : genParams.max_length;
 
     let lengthToStream = genParams.max_length;
-    const params = { ...genParams, max_length: firstChunkLength };
+    let generatedSoFar = "";
 
-    while (lengthToStream) {
+    const params = { ...genParams, max_length: nextChunkLength };
+
+    while (lengthToStream > 0) {
       const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
         method: "POST",
         headers: {
@@ -495,7 +529,18 @@ const koboldGenerateStream = (req, res, genParams) =>
       } = await resp.json();
 
       console.log("GENERATED:", text);
-      text = truncateGeneratedText(text);
+      if (backendType !== "koboldcpp") {
+        text = truncateGeneratedText(text);
+      } else {
+        let currentText = generatedSoFar + text;
+        let pos = currentText.lastIndexOf("\n##");
+        if (pos !== -1) {
+          console.log("TRUNCATED:", currentText.substr(pos));
+          currentText = currentText.substr(0, pos).trimRight();
+          text = currentText.substr(generatedSoFar.length);
+          lengthToStream = 0;
+        }
+      }
 
       const json = JSON.stringify({
         choices: [{ delta: { content: text } }],
@@ -503,8 +548,8 @@ const koboldGenerateStream = (req, res, genParams) =>
       res.write(`data: ${json}\n\n`, "utf-8");
 
       lengthToStream -= nextChunkLength;
-      params.max_length = nextChunkLength;
       params.prompt += text;
+      generatedSoFar += text;
     }
 
     res.end("data: [DONE]\n\n", "utf-8");
@@ -513,7 +558,7 @@ const koboldGenerateStream = (req, res, genParams) =>
 
 const getChatCompletions = async (req, res) => {
   await jsonParse(req, res);
-  await checkIsOoba();
+  await checkWhichBackend();
 
   const args = req.body;
   console.log("COMPLETIONS", args);
@@ -548,7 +593,7 @@ const getChatCompletions = async (req, res) => {
   };
 
   if (args.stream) {
-    if (isOoba) {
+    if (backendType === "ooba") {
       await oobaGenerateStream(req, res, genParams);
     } else {
       await koboldGenerateStream(req, res, genParams);
