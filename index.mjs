@@ -446,10 +446,10 @@ const koboldGenerate = async (req, res, genParams) => {
 };
 
 const oobaGenerateStream = (req, res, genParams) =>
-  new Promise((resolve, reject) => {
+  new Promise((resolve) => {
     const ws = new WebSocket(oobaStreamUrl);
 
-    ws.onopen = (event) => {
+    ws.onopen = () => {
       res.writeHead(200, {
         "Content-Type": "text/event-stream; charset=utf-8",
         Connection: "keep-alive",
@@ -623,7 +623,9 @@ const handleError = (req, res, error) => {
       ...corsHeaders,
     });
     res.end(buffer, "utf-8");
-  } catch (err) {}
+  } catch (ignore) {
+    //
+  }
 };
 
 const httpServer = http.createServer(async (req, res) => {
