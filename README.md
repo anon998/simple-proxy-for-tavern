@@ -17,7 +17,7 @@ In Tavern:
 + Delete Main Prompt, NSFW Prompt, Jailbreak Prompt, Impersonation Prompt.
 + Change Impersonation Prompt to "IMPERSONATION_PROMPT".
 + Change Jailbreak Prompt to "{{char}}\n{{user}}".
-+ Leave only NSFW Toggle and Send Jailbreak active.
++ Leave only NSFW Toggle and Send Jailbreak active, and Streaming if you want that too.
 
 Leave Context Size high so Tavern doesn't truncate the messages, we're doing that in this script.
 

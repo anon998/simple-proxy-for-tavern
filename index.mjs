@@ -1,6 +1,7 @@
 import http from "http";
 import url from "url";
 import fs from "fs";
+import WebSocket from "ws";
 
 import { SentencePieceProcessor } from "sentencepiece-js";
 import BodyParser from "body-parser";
@@ -13,6 +14,7 @@ const host = "127.0.0.1";
 const port = 29172;
 
 const koboldApiUrl = "http://127.0.0.1:5000";
+const oobaStreamUrl = "ws://127.0.0.1:5005/api/v1/stream";
 
 const generationConfig = {
   n: 1,
@@ -30,10 +32,11 @@ const generationConfig = {
   sampler_order: [0, 1, 2, 3, 4, 5, 6],
   prompt: "",
   quiet: false,
-  // stopping_strings: ["\n###"],
-  // ban_eos_token: true,
+  stopping_strings: ["\n###"],
+  ban_eos_token: false,
 };
 
+let isOoba = null;
 let dropUnfinishedSentences = true;
 
 const buildLlamaPrompt = ({ user, assistant, messages }) => {
@@ -228,6 +231,23 @@ const jsonParse = (req, res) =>
     });
   });
 
+const checkIsOoba = async () => {
+  if (isOoba === null) {
+    const resp = await fetch(`${koboldApiUrl}/api/v1/info/version`);
+    if (resp.status === 200) {
+      isOoba = false;
+    } else if (resp.status == 404) {
+      isOoba = true;
+    }
+    console.log({ isOoba });
+  }
+
+  if (!isOoba) {
+    delete generationConfig["stopping_strings"];
+    delete generationConfig["ban_eos_token"];
+  }
+};
+
 const getModels = async (req, res) => {
   const resp = await fetch(`${koboldApiUrl}/api/v1/model`);
   const { result: modelName } = await resp.json();
@@ -361,8 +381,139 @@ const findCharacterNames = (args) => {
   return { user, assistant };
 };
 
+const koboldGenerate = async (req, res, genParams) => {
+  const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(genParams),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text);
+  }
+
+  let {
+    results: [{ text }],
+  } = await resp.json();
+
+  console.log("GENERATED:", text);
+  text = truncateGeneratedText(text);
+
+  const buffer = toBuffer({
+    choices: [{ message: { content: text } }],
+  });
+
+  res.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": buffer.length,
+    ...corsHeaders,
+  });
+
+  res.end(buffer, "utf-8");
+};
+
+const oobaGenerateStream = (req, res, genParams) =>
+  new Promise((resolve, reject) => {
+    const ws = new WebSocket(oobaStreamUrl);
+
+    ws.onopen = (event) => {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        Connection: "keep-alive",
+        "Cache-Control": "no-cache",
+        ...corsHeaders,
+      });
+      res.flushHeaders();
+
+      ws.send(JSON.stringify(genParams));
+    };
+
+    ws.onerror = (event) => {
+      console.error(`WebSocket error: ${event.message}`);
+      res.end("data: [DONE]\n\n", "utf-8");
+      ws.close();
+      resolve();
+    };
+
+    ws.onclose = () => {
+      resolve();
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log(data);
+
+      if (data.event === "text_stream") {
+        const json = JSON.stringify({
+          choices: [{ delta: { content: data.text } }],
+        });
+        res.write(`data: ${json}\n\n`, "utf-8");
+      } else if (data.event === "stream_end") {
+        res.end("data: [DONE]\n\n", "utf-8");
+        ws.close();
+      }
+    };
+  });
+
+const koboldGenerateStream = (req, res, genParams) =>
+  new Promise(async (resolve) => {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      Connection: "keep-alive",
+      "Cache-Control": "no-cache",
+      ...corsHeaders,
+    });
+    res.flushHeaders();
+
+    const firstChunkLength = genParams.max_length;
+    const nextChunkLength = genParams.max_length;
+
+    let lengthToStream = genParams.max_length;
+    const params = { ...genParams, max_length: firstChunkLength };
+
+    while (lengthToStream) {
+      const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error(`Error: ${text}`);
+        res.end("data: [DONE]\n\n", "utf-8");
+        return resolve();
+      }
+
+      let {
+        results: [{ text }],
+      } = await resp.json();
+
+      console.log("GENERATED:", text);
+      text = truncateGeneratedText(text);
+
+      const json = JSON.stringify({
+        choices: [{ delta: { content: text } }],
+      });
+      res.write(`data: ${json}\n\n`, "utf-8");
+
+      lengthToStream -= nextChunkLength;
+      params.max_length = nextChunkLength;
+      params.prompt += text;
+    }
+
+    res.end("data: [DONE]\n\n", "utf-8");
+    resolve();
+  });
+
 const getChatCompletions = async (req, res) => {
   await jsonParse(req, res);
+  await checkIsOoba();
 
   const args = req.body;
   console.log("COMPLETIONS", args);
@@ -391,47 +542,20 @@ const getChatCompletions = async (req, res) => {
 
   fs.writeFileSync("./prompt.txt", promptText);
 
-  const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      ...generationConfig,
-      prompt: promptText,
-    }),
-  });
+  const genParams = {
+    ...generationConfig,
+    prompt: promptText,
+  };
 
-  if (!resp.ok) {
-    const text = await resp.text();
-    console.error(text);
-    const buffer = Buffer.from(JSON.stringify(text));
-    res.writeHead(501, {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Length": buffer.length,
-      ...corsHeaders,
-    });
-    return res.end(buffer, "utf-8");
+  if (args.stream) {
+    if (isOoba) {
+      await oobaGenerateStream(req, res, genParams);
+    } else {
+      await koboldGenerateStream(req, res, genParams);
+    }
+  } else {
+    await koboldGenerate(req, res, genParams);
   }
-
-  let {
-    results: [{ text }],
-  } = await resp.json();
-
-  console.log("GENERATED:", text);
-  text = truncateGeneratedText(text);
-
-  const buffer = toBuffer({
-    choices: [{ message: { content: text } }],
-  });
-
-  res.writeHead(200, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Content-Length": buffer.length,
-    ...corsHeaders,
-  });
-
-  res.end(buffer, "utf-8");
 };
 
 const notFound = (req, res) => {
@@ -442,6 +566,19 @@ const notFound = (req, res) => {
     ...corsHeaders,
   });
   res.end(buffer, "utf-8");
+};
+
+const handleError = (req, res, error) => {
+  try {
+    console.error(error.message);
+    const buffer = toBuffer({ error: error.message });
+    res.writeHead(501, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Length": buffer.length,
+      ...corsHeaders,
+    });
+    res.end(buffer, "utf-8");
+  } catch (err) {}
 };
 
 const httpServer = http.createServer(async (req, res) => {
@@ -463,13 +600,7 @@ const httpServer = http.createServer(async (req, res) => {
       await notFound(req, res);
     }
   } catch (error) {
-    const buffer = toBuffer({ error: error.message });
-    res.writeHead(500, {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Length": buffer.length,
-      ...corsHeaders,
-    });
-    res.end(buffer, "utf-8");
+    handleError(req, res, error);
   }
 });
 
