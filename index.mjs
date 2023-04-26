@@ -615,7 +615,7 @@ const notFound = (req, res) => {
 
 const handleError = (req, res, error) => {
   try {
-    console.error(error.message);
+    console.error(error.stack);
     const buffer = toBuffer({ error: error.message });
     res.writeHead(501, {
       "Content-Type": "application/json; charset=utf-8",
