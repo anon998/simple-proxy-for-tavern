@@ -34,6 +34,8 @@ const generationConfig = {
   // ban_eos_token: true,
 };
 
+let dropUnfinishedSentences = true;
+
 const buildLlamaPrompt = ({ user, assistant, messages }) => {
   let systemPrompt = `## ${assistant}
 - You're "${assistant}" in this never-ending roleplay with "${user}".`;
@@ -313,11 +315,26 @@ const limitMessagesInContext = (prompt, generationConfig) => {
 };
 
 const truncateGeneratedText = (text) => {
+  text = text.trimRight();
+
   let pos = text.indexOf("\n##");
   if (pos !== -1) {
     console.log("TRUNCATED:", text.substr(pos));
-    return text.substr(0, pos);
+    text = text.substr(0, pos).trimRight();
   }
+
+  if (dropUnfinishedSentences) {
+    const endsInLetter = text.match(/[a-zA-Z0-9]$/);
+    if (endsInLetter) {
+      const punctuation = [...`.?!;)]>"”*`];
+      pos = Math.max(...punctuation.map((v) => text.lastIndexOf(v)));
+      if (pos > 5) {
+        console.log("TRUNCATED:", text.substr(pos + 1));
+        text = text.substr(0, pos + 1);
+      }
+    }
+  }
+
   return text;
 };
 
