@@ -23,6 +23,8 @@ Leave Context Size high so Tavern doesn't truncate the messages, we're doing tha
 
 Tavern settings like Temperature, etc. are ignored, edit generationConfig in the code instead.
 
+You can keep "Keep Example Messages in Prompt" on in the UI so the script receives the examples, but you have to change keepExampleMessagesInPrompt in index.mjs to actually change if this script keeps them or not in the prompt. 
+
 The last prompt is saved as prompt.txt, edit the buildLlamaPrompt function to experiment with the format.
 
 ## Tavern Settings Screenshot

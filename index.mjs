@@ -35,8 +35,10 @@ const generationConfig = {
   stopping_strings: ["\n###"],
 };
 
-let backendType = null;
+let keepExampleMessagesInPrompt = false; // change it in the Tavern UI too
 let dropUnfinishedSentences = true;
+
+let backendType = null;
 
 const buildLlamaPrompt = ({ user, assistant, messages }) => {
   let systemPrompt = `## ${assistant}
@@ -110,14 +112,14 @@ const buildLlamaPrompt = ({ user, assistant, messages }) => {
         prompt.push({
           role: "assistant",
           type: "example-conversation",
-          prunable: true,
+          prunable: !keepExampleMessagesInPrompt,
           content: `${beforeAssistant}${assistantName()}${content}${afterAssistant}`,
         });
       } else if (name === "example_user") {
         prompt.push({
           role: "user",
           type: "example-conversation",
-          prunable: true,
+          prunable: !keepExampleMessagesInPrompt,
           content: `${beforeUser}${userName()}${content}${afterUser}`,
         });
       } else {
