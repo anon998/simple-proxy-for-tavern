@@ -1,11 +1,16 @@
 # Fake OpenAI API for Kobold
+This script changes the format of the prompt and it improves the responses when using Tavern.
+The LLaMA tokenizer needs a modern Node.js version to work, I use v19 myself.
 
+Clone this repository anywhere in your computer and run this inside the directory:
 ``` sh
 npm install
 node index.mjs
+```
 
-# Or this to reload automatically when editing the file:
-# npx nodemon index.mjs
+You can replace the last line to this if you want it to reload automatically when editing the file:
+``` sh
+npx nodemon index.mjs
 ```
 
 ## Tavern Settings
@@ -23,9 +28,11 @@ Leave Context Size high so Tavern doesn't truncate the messages, we're doing tha
 
 Tavern settings like Temperature, etc. are ignored, edit generationConfig in the code instead.
 
-You can keep "Keep Example Messages in Prompt" on in the UI so the script receives the examples, but you have to change keepExampleMessagesInPrompt in index.mjs to actually change if this script keeps them or not in the prompt. 
+If you want to always keep the example messages of the character in the prompt you have to edit keepExampleMessagesInPrompt in index.mjs while also enabling the option in the Tavern UI.
 
 The last prompt is saved as prompt.txt, edit the buildLlamaPrompt function to experiment with the format.
+
+Streaming works for ooba and koboldcpp but it doesn't for kobold.
 
 ## Tavern Settings Screenshot
 ![settings screenshot](./settings.png)
