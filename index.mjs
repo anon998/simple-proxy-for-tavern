@@ -391,7 +391,11 @@ const findCharacterNames = (args) => {
     lastMessage = args.messages[lastMessageIndex];
   }
   if (lastMessage.role === "system") {
-    const lines = lastMessage.content.split("\n");
+    let content = lastMessage.content.trim();
+    let lines = content.split("\n");
+    if (lines.length === 1) {
+      lines = content.split("\\n");
+    }
     if (lines.length === 2) {
       assistant = lines[0].trim();
       user = lines[1].trim();
