@@ -1,13 +1,10 @@
 import http from "http";
 import url from "url";
 import fs from "fs";
-import WebSocket from "ws";
 
-import { SentencePieceProcessor } from "sentencepiece-js";
 import BodyParser from "body-parser";
-
-const spp = new SentencePieceProcessor();
-await spp.load("tokenizer.model");
+import fetch from "node-fetch";
+import WebSocket from "ws";
 
 // conf
 const host = "127.0.0.1";
@@ -39,6 +36,23 @@ let keepExampleMessagesInPrompt = false; // change it in the Tavern UI too
 let dropUnfinishedSentences = true;
 
 let backendType = null;
+
+let spp;
+const importSentencePiece = async () => {
+  try {
+    const { SentencePieceProcessor } = await import("sentencepiece-js");
+    spp = new SentencePieceProcessor();
+    await spp.load("tokenizer.model");
+    console.log("Tokenizer loaded!");
+  } catch (error) {
+    spp = null;
+    console.error(error.message);
+    console.error(
+      `\nERROR: Couldn't load the tokenizer, maybe your Node.js version is too old.`
+    );
+  }
+};
+importSentencePiece();
 
 const buildLlamaPrompt = ({ user, assistant, messages }) => {
   let systemPrompt = `## ${assistant}
@@ -205,7 +219,13 @@ const buildLlamaPrompt = ({ user, assistant, messages }) => {
 };
 
 const tokenize = (input) => {
-  return input.map((v) => spp.encodeIds(v).length);
+  return input.map((v) => {
+    if (spp) {
+      return spp.encodeIds(v).length;
+    } else {
+      return Math.ceil(v.length / 3.35);
+    }
+  });
 };
 
 const corsHeaders = {
