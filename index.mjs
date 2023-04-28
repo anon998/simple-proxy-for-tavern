@@ -10,7 +10,7 @@ import WebSocket from "ws";
 const host = "127.0.0.1";
 const port = 29172;
 
-const koboldApiUrl = "http://127.0.0.1:5000";
+let koboldApiUrl = "http://127.0.0.1:5000";
 const oobaStreamUrl = "ws://127.0.0.1:5005/api/v1/stream";
 
 const generationConfig = {
@@ -252,22 +252,55 @@ const jsonParse = (req, res) =>
     });
   });
 
-const checkWhichBackend = async () => {
-  if (backendType === null) {
-    let resp = await fetch(`${koboldApiUrl}/api/v1/info/version`);
-    if (resp.status === 200) {
-      backendType = "kobold";
-    } else if (resp.status == 404) {
-      backendType = "ooba";
+const getBackendType = async () => {
+  let resp;
+  let errors = [];
+
+  let koboldCppUrl = koboldApiUrl;
+  for (let i = 0; i < 2; i++) {
+    try {
+      resp = await fetch(`${koboldCppUrl}/api/extra/version`);
+      if (resp.ok) {
+        const json = await resp.json();
+        if (json.result === "KoboldCpp") {
+          if (koboldApiUrl !== koboldCppUrl) {
+            koboldApiUrl = koboldCppUrl;
+            console.log(`Changed Kobold URL to ${koboldApiUrl}`);
+          }
+          return "koboldcpp";
+        }
+      }
+    } catch (error) {
+      errors.push(error);
     }
 
-    resp = await fetch(`${koboldApiUrl}/api/extra/version`);
-    if (resp.ok) {
-      const json = await resp.json();
-      if (json.result === "KoboldCpp") {
-        backendType = "koboldcpp";
-      }
+    koboldCppUrl = koboldApiUrl.replace(/(.*):\d+$/g, '$1:5001');
+  }
+
+  try {
+    resp = await fetch(`${koboldApiUrl}/api/v1/info/version`);
+    if (resp.status === 200) {
+      return "kobold";
+    } else if (resp.status == 404) {
+      return "ooba";
     }
+  } catch(error) {
+    errors.push(error);
+  }
+
+  if (!backendType) {
+    let message = `Couldn't connect with a Kobold/KoboldCPP/Ooba backend.\n`;
+    message += errors.map(v => v.message).join('\n');
+    throw new Error(message);
+  }
+
+  return backendType;
+};
+
+const checkWhichBackend = async () => {
+  if (backendType === null) {
+    backendType = await getBackendType();
+    console.log({ backendType });
   }
 
   if (backendType === "kobold") {
@@ -286,8 +319,6 @@ const checkWhichBackend = async () => {
       delete generationConfig["stopping_strings"];
     }
   }
-
-  console.log({ backendType });
 };
 
 const getModels = async (req, res) => {
@@ -545,7 +576,7 @@ const koboldGenerateStream = (req, res, genParams) =>
 
       if (!resp.ok) {
         const text = await resp.text();
-        console.error(`Error: ${text}`);
+        console.error(`ERROR: ${text}`);
         res.end("data: [DONE]\n\n", "utf-8");
         return resolve();
       }
@@ -584,7 +615,6 @@ const koboldGenerateStream = (req, res, genParams) =>
 
 const getChatCompletions = async (req, res) => {
   await jsonParse(req, res);
-  await checkWhichBackend();
 
   const args = req.body;
   console.log("COMPLETIONS", args);
@@ -665,6 +695,8 @@ const httpServer = http.createServer(async (req, res) => {
   const path = url.parse(req.url, true).pathname;
 
   try {
+    await checkWhichBackend();
+
     if (req.method === "GET" && path === "/v1/models") {
       await getModels(req, res);
     } else if (req.method === "POST" && path === "/v1/chat/completions") {
