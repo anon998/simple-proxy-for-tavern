@@ -3,7 +3,6 @@ import url from "url";
 import fs from "fs";
 
 import BodyParser from "body-parser";
-import fetch from "node-fetch";
 import WebSocket from "ws";
 
 // conf
@@ -35,7 +34,17 @@ const generationConfig = {
 let keepExampleMessagesInPrompt = false; // change it in the Tavern UI too
 let dropUnfinishedSentences = true;
 
-let backendType = null;
+let backendType = null; // "kobold", "koboldcpp" or "ooba"
+
+// I hate node
+const importFetch = async () => {
+  if (!("fetch" in global)) {
+    import("node-fetch").then(({ default: fn }) => {
+      global.fetch = fn;
+    });
+  }
+};
+importFetch();
 
 let spp;
 const importSentencePiece = async () => {
