@@ -715,6 +715,9 @@ httpServer.listen(port, host, (error) => {
     process.exit(1);
   }
 
-  console.log(`Listening on http://${host}:${port}`);
   console.log(`Using these Kobold generation settings: `, generationConfig);
+  console.log(`Proxy URL at http://${host}:${port}/v1`);
+  console.log(`Using these URLs for the backend:`);
+  console.log(`- Kobold: ${koboldApiUrl} or :5001`);
+  console.log(`- Ooba stream: ${oobaStreamUrl}`);
 });
