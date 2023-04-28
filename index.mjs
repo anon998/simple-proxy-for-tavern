@@ -274,7 +274,7 @@ const getBackendType = async () => {
       errors.push(error);
     }
 
-    koboldCppUrl = koboldApiUrl.replace(/(.*):\d+$/g, '$1:5001');
+    koboldCppUrl = koboldApiUrl.replace(/(.*):\d+$/g, "$1:5001");
   }
 
   try {
@@ -284,13 +284,13 @@ const getBackendType = async () => {
     } else if (resp.status == 404) {
       return "ooba";
     }
-  } catch(error) {
+  } catch (error) {
     errors.push(error);
   }
 
   if (!backendType) {
     let message = `Couldn't connect with a Kobold/KoboldCPP/Ooba backend.\n`;
-    message += errors.map(v => v.message).join('\n');
+    message += errors.map((v) => v.message).join("\n");
     throw new Error(message);
   }
 
