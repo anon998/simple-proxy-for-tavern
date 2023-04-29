@@ -1,5 +1,5 @@
 # Fake OpenAI API for Kobold
-This script changes the format of the prompt and it improves the responses when using Tavern.
+This script changes the format of the prompt and it improves the responses when using SillyTavern.
 The LLaMA tokenizer needs a modern Node.js version to work, I use v19 myself.
 
 Clone this repository anywhere in your computer and run this inside the directory:
@@ -26,13 +26,16 @@ In Tavern:
 
 Leave Context Size high so Tavern doesn't truncate the messages, we're doing that in this script.
 
-Tavern settings like Temperature, etc. are ignored, edit generationConfig in the code instead.
+Tavern settings like Temperature, etc. are ignored, edit *generationConfig* in the code instead.
+There's also a *replyAttributes* variable that makes the AI give the more descriptive responses.
 
-If you want to always keep the example messages of the character in the prompt you have to edit keepExampleMessagesInPrompt in index.mjs while also enabling the option in the Tavern UI.
+If you want to always keep the example messages of the character in the prompt you have to edit *keepExampleMessagesInPrompt* in index.mjs while also enabling the option in the Tavern UI.
 
-The last prompt is saved as prompt.txt, edit the buildLlamaPrompt function to experiment with the format.
+The last prompt is saved as prompt.txt, edit the *buildLlamaPrompt* function to experiment with the format.
 
 Streaming works for ooba and koboldcpp but it doesn't for kobold.
+
+Ooba needs to be started with --extensions api and the streaming api was added Apr 23, 2023.
 
 ## Tavern Settings Screenshot
 ![settings screenshot](./settings.png)
