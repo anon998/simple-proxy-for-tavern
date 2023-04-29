@@ -65,7 +65,36 @@ const importSentencePiece = async () => {
 };
 importSentencePiece();
 
+const fixExampleMessages = ({ user, assistant, messages }) => {
+  let fixedMessages = [];
+
+  for (const { role, content, name } of messages) {
+    if (
+      role === "system" &&
+      (name === "example_assistant" || name === "example_user")
+    ) {
+      let split;
+      if (name === "example_assistant") {
+        split = content.split(`\n${assistant}:`);
+      } else {
+        split = content.split(`\n${user}:`);
+      }
+      fixedMessages.push({
+        role,
+        name,
+        content: split.map((v) => v.trim()).join("\n"),
+      });
+    } else {
+      fixedMessages.push({ role, content, name });
+    }
+  }
+
+  return fixedMessages;
+};
+
 const buildLlamaPrompt = ({ user, assistant, messages }) => {
+  messages = fixExampleMessages({ user, assistant, messages });
+
   let systemPrompt = `## ${assistant}
 - You're "${assistant}" in this never-ending roleplay with "${user}".`;
   let newConversation = `### New Roleplay:`;
