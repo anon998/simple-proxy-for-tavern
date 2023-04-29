@@ -28,13 +28,15 @@ const generationConfig = {
   sampler_order: [0, 1, 2, 3, 4, 5, 6],
   prompt: "",
   quiet: false,
-  stopping_strings: ["\n###"],
+  stopping_strings: ["\n##", "\n{{user}}:"],
 };
 
 let keepExampleMessagesInPrompt = false; // change it in the Tavern UI too
 let dropUnfinishedSentences = true;
 
 let backendType = null; // "kobold", "koboldcpp" or "ooba"
+
+const defaultStoppingStrings = generationConfig.stopping_strings;
 
 // I hate node
 const importFetch = async () => {
@@ -416,12 +418,25 @@ const limitMessagesInContext = (prompt, generationConfig) => {
   return finalPrompt;
 };
 
-const truncateGeneratedText = (text) => {
+const findStoppingStringPosition = (stoppingStrings, text) => {
+  const positions =
+    stoppingStrings && stoppingStrings.length
+      ? stoppingStrings.map((v) => text.indexOf(v)).filter((v) => v !== -1)
+      : [];
+
+  if (!positions.length) {
+    return -1;
+  }
+
+  return Math.min(...positions);
+};
+
+const truncateGeneratedText = (stoppingStrings, text) => {
   text = text.trimRight();
 
-  let pos = text.indexOf("\n##");
+  let pos = findStoppingStringPosition(stoppingStrings, text);
   if (pos !== -1) {
-    console.log("TRUNCATED:", text.substr(pos));
+    console.log("[ TRUNCATED ]:", text.substr(pos));
     text = text.substr(0, pos).trimRight();
   }
 
@@ -431,7 +446,7 @@ const truncateGeneratedText = (text) => {
       const punctuation = [...`.?!;)]>"”*`];
       pos = Math.max(...punctuation.map((v) => text.lastIndexOf(v)));
       if (pos > 5) {
-        console.log("TRUNCATED:", text.substr(pos + 1));
+        console.log("[ TRUNCATED ]:", text.substr(pos + 1));
         text = text.substr(0, pos + 1);
       }
     }
@@ -477,7 +492,12 @@ const workAroundTavernDelay = (req, res) => {
   }
 };
 
-const koboldGenerate = async (req, res, genParams) => {
+const formatStoppingStrings = ({ user, assistant }) =>
+  defaultStoppingStrings.map((v) =>
+    v.replaceAll("{{user}}", user).replaceAll("{{assistant}}", assistant)
+  );
+
+const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
   const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
     method: "POST",
     headers: {
@@ -495,8 +515,10 @@ const koboldGenerate = async (req, res, genParams) => {
     results: [{ text }],
   } = await resp.json();
 
-  console.log("GENERATED:", text);
-  text = truncateGeneratedText(text);
+  console.log("[ GENERATED ]:", text);
+
+  const stoppingStrings = formatStoppingStrings({ user, assistant });
+  text = truncateGeneratedText(stoppingStrings, text);
 
   const buffer = toBuffer({
     choices: [{ message: { content: text } }],
@@ -555,7 +577,7 @@ const oobaGenerateStream = (req, res, genParams) =>
     };
   });
 
-const koboldGenerateStream = (req, res, genParams) =>
+const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
   new Promise(async (resolve) => {
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
@@ -573,6 +595,8 @@ const koboldGenerateStream = (req, res, genParams) =>
     let generatedSoFar = "";
 
     const params = { ...genParams, max_length: nextChunkLength };
+
+    const stoppingStrings = formatStoppingStrings({ user, assistant });
 
     while (lengthToStream > 0) {
       const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
@@ -596,13 +620,14 @@ const koboldGenerateStream = (req, res, genParams) =>
 
       console.log("GENERATED:", text);
       if (backendType !== "koboldcpp") {
-        text = truncateGeneratedText(text);
+        text = truncateGeneratedText(stoppingStrings, text);
       } else {
-        let currentText = generatedSoFar + text;
-        let pos = currentText.lastIndexOf("\n##");
+        const pos = findStoppingStringPosition(stoppingStrings, text);
         if (pos !== -1) {
-          console.log("TRUNCATED:", currentText.substr(pos));
-          currentText = currentText.substr(0, pos).trimRight();
+          const currentText = truncateGeneratedText(
+            stoppingStrings,
+            generatedSoFar + text
+          );
           text = currentText.substr(generatedSoFar.length);
           lengthToStream = 0;
         }
@@ -656,15 +681,23 @@ const getChatCompletions = async (req, res) => {
     ...generationConfig,
     prompt: promptText,
   };
+  if ("stopping_strings" in genParams) {
+    genParams["stopping_strings"] = formatStoppingStrings({ user, assistant });
+    console.log({ stopping_strings: genParams["stopping_strings"] });
+  }
+  if ("stop_sequence" in genParams) {
+    genParams["stop_sequence"] = formatStoppingStrings({ user, assistant });
+    console.log({ stop_sequence: genParams["stop_sequence"] });
+  }
 
   if (args.stream) {
     if (backendType === "ooba") {
-      await oobaGenerateStream(req, res, genParams);
+      await oobaGenerateStream(req, res, genParams, { user, assistant });
     } else {
-      await koboldGenerateStream(req, res, genParams);
+      await koboldGenerateStream(req, res, genParams, { user, assistant });
     }
   } else {
-    await koboldGenerate(req, res, genParams);
+    await koboldGenerate(req, res, genParams, { user, assistant });
   }
 };
 
