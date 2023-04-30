@@ -61,7 +61,8 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 
 ## Examples
 
-TODO
+[Rentry with examples from /lmg/](https://rentry.org/llama-examples)
+![rp example](https://files.catbox.moe/th40hm.png)
 
 ## Changelog
 
