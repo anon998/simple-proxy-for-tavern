@@ -2,6 +2,9 @@
 /prompt.txt
 /config.mjs
 
+/presets/*
+/prompt-formats/*
+
 logs
 *.log
 npm-debug.log*
