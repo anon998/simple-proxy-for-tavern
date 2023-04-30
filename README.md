@@ -65,7 +65,7 @@ TODO
 
 ## Changelog
 
-### 2019-10-28
+### 2023-04-29
 
 - Added a config.mjs file for the settings.
 - Added presets/ for generation presets and prompt-formats/ for the functions that generates the prompts.
