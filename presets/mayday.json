@@ -1,0 +1,14 @@
+{
+  "n": 1,
+  "rep_pen": 1.1,
+  "temperature": 1.05,
+  "top_p": 0.95,
+  "top_k": 0,
+  "top_a": 0.0,
+  "typical": 1.0,
+  "tfs": 1.0,
+  "rep_pen_range": 1024,
+  "rep_pen_slope": 0.7,
+  "sampler_order": [0, 1, 2, 3, 4, 5, 6],
+  "quiet": false
+}

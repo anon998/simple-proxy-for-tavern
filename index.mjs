@@ -1,44 +1,18 @@
 import http from "http";
 import url from "url";
 import fs from "fs";
+import path from "path";
 
 import BodyParser from "body-parser";
 import WebSocket from "ws";
 
-// conf
-const host = "127.0.0.1";
-const port = 29172;
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
-let koboldApiUrl = "http://127.0.0.1:5000";
-const oobaStreamUrl = "ws://127.0.0.1:5005/api/v1/stream";
+let config;
+let generationConfig;
+let buildLlamaPrompt;
+let spp;
 
-const generationConfig = {
-  n: 1,
-  max_context_length: 2048,
-  max_length: 250,
-  rep_pen: 1.18,
-  temperature: 0.65,
-  top_p: 0.47,
-  top_k: 42,
-  top_a: 0.0,
-  typical: 1.0,
-  tfs: 1.0,
-  rep_pen_range: 2048,
-  rep_pen_slope: 0.0,
-  sampler_order: [0, 1, 2, 3, 4, 5, 6],
-  prompt: "",
-  quiet: false,
-  stopping_strings: ["\n##", "\n{{user}}:"],
-};
-
-let keepExampleMessagesInPrompt = false; // change it in the Tavern UI too
-let dropUnfinishedSentences = true;
-
-let backendType = null; // "kobold", "koboldcpp" or "ooba"
-
-const defaultStoppingStrings = generationConfig.stopping_strings;
-
-// I hate node
 const importFetch = async () => {
   if (!("fetch" in global)) {
     import("node-fetch").then(({ default: fn }) => {
@@ -46,9 +20,7 @@ const importFetch = async () => {
     });
   }
 };
-importFetch();
 
-let spp;
 const importSentencePiece = async () => {
   try {
     const { SentencePieceProcessor } = await import("sentencepiece-js");
@@ -63,199 +35,36 @@ const importSentencePiece = async () => {
     );
   }
 };
-importSentencePiece();
 
-const fixExampleMessages = ({ user, assistant, messages }) => {
-  let fixedMessages = [];
+const importConfig = async () => {
+  const defaultConfigPath = path.resolve(__dirname, "config.default.mjs");
+  console.log(`Loading default settings from ${defaultConfigPath}`);
+  config = await import(defaultConfigPath).then(
+    ({ default: module }) => module
+  );
 
-  for (const { role, content, name } of messages) {
-    if (
-      role === "system" &&
-      (name === "example_assistant" || name === "example_user")
-    ) {
-      let split;
-      if (name === "example_assistant") {
-        split = content.split(`\n${assistant}:`);
-      } else {
-        split = content.split(`\n${user}:`);
-      }
-      fixedMessages.push({
-        role,
-        name,
-        content: split.map((v) => v.trim()).join("\n"),
-      });
-    } else {
-      fixedMessages.push({ role, content, name });
-    }
+  const userConfigPath = path.resolve(__dirname, "config.mjs");
+  if (fs.existsSync(userConfigPath)) {
+    console.log(`Loading user settings from ${userConfigPath}`);
+    const userConfig = await import(userConfigPath).then(
+      ({ default: module }) => module
+    );
+    config = { ...config, ...userConfig };
   }
 
-  return fixedMessages;
-};
+  console.log(`Loading generation preset from ${config.generationPreset}`);
+  const presetPath = path.resolve(__dirname, config.generationPreset);
+  generationConfig = JSON.parse(fs.readFileSync(presetPath));
 
-const buildLlamaPrompt = ({ user, assistant, messages }) => {
-  messages = fixExampleMessages({ user, assistant, messages });
+  generationConfig.max_context_length = config.maxContextLength;
+  generationConfig.max_length = config.maxNewTokens;
+  generationConfig.stopping_strings = config.stoppingStrings;
 
-  let systemPrompt = `## ${assistant}
-- You're "${assistant}" in this never-ending roleplay with "${user}".`;
-  let newConversation = `### New Roleplay:`;
-  let context = `### Input:\n`;
-  let contextResponse = `### Response:\n(OOC) Understood. I will have this info into account for the roleplay. (end OOC)`;
-  //     let replyInstruction = `(OOC) Write only ${assistant} next reply in this roleplay.
-  // - Don't take control of ${user}.
-  // - **Always** stay in character and be creative, writing with ${assistant}'s style and personality.
-  // - Write at least two paragraphs. (end OOC)`;
-  let replyInstruction = ``;
-  let impersonationInstruction = `Write ${user}'s next reply in this fictional roleplay with ${assistant}.`;
-  let userName = (attributes = "") =>
-    `### Instruction${attributes}:\n#### ${user}:\n`;
-  let assistantName = (attributes = "") =>
-    `### Response${attributes}:\n#### ${assistant}:\n`;
-  let replyAttributes = ` (2 paragraphs, engaging, natural, authentic, descriptive, creative)`;
-  let mainPromptAdded = false;
-  let impersonationPromptFound = false;
-
-  let beforeSystem = "\n\n";
-  let afterSystem = "\n";
-  let beforeUser = "\n\n";
-  let afterUser = "\n";
-  let beforeAssistant = "\n\n";
-  let afterAssistant = "\n";
-
-  let prompt = [];
-  if (systemPrompt) {
-    prompt.push({
-      role: "system",
-      type: "system-prompt",
-      prunable: false,
-      content: `${beforeSystem}${systemPrompt}${afterSystem}`,
-    });
-  }
-
-  let i = 0;
-  for (let { role, content, name } of messages) {
-    content = content.trim();
-    if (role === "system") {
-      if (content === "[Start a new chat]") {
-        if (newConversation) {
-          prompt.push({
-            role: "system",
-            type: "new-conversation",
-            prunable: false,
-            content: `${beforeSystem}${newConversation}${afterSystem}`,
-          });
-        }
-      } else if (!mainPromptAdded) {
-        mainPromptAdded = true;
-        prompt.push({
-          role: "system",
-          type: "context",
-          prunable: false,
-          content: `${beforeSystem}${context}${content}${afterSystem}`,
-        });
-        if (contextResponse) {
-          prompt.push({
-            role: "assistant",
-            type: "context-response",
-            prunable: false,
-            content: `${beforeAssistant}${contextResponse}${afterAssistant}`,
-          });
-        }
-      } else if (content === "IMPERSONATION_PROMPT") {
-        impersonationPromptFound = true;
-      } else if (name === "example_assistant") {
-        prompt.push({
-          role: "assistant",
-          type: "example-conversation",
-          prunable: !keepExampleMessagesInPrompt,
-          content: `${beforeAssistant}${assistantName()}${content}${afterAssistant}`,
-        });
-      } else if (name === "example_user") {
-        prompt.push({
-          role: "user",
-          type: "example-conversation",
-          prunable: !keepExampleMessagesInPrompt,
-          content: `${beforeUser}${userName()}${content}${afterUser}`,
-        });
-      } else {
-        prompt.push({
-          role: "system",
-          type: "other",
-          prunable: false,
-          content: `${beforeSystem}${content}${afterSystem}`,
-        });
-      }
-    } else if (role === "assistant") {
-      if (i === messages.length - 1) {
-        if (replyInstruction) {
-          prompt.push({
-            role: "system",
-            type: "reply-instruction",
-            prunable: false,
-            content: `${beforeSystem}${replyInstruction}${afterSystem}`,
-          });
-        }
-        prompt.push({
-          role: "assistant",
-          type: "reply",
-          prunable: false,
-          content: `${beforeAssistant}${assistantName(
-            replyAttributes
-          )}${content}`,
-        });
-      } else {
-        prompt.push({
-          role: "assistant",
-          type: "reply",
-          prunable: true,
-          content: `${beforeAssistant}${assistantName()}${content}${afterAssistant}`,
-        });
-      }
-    } else if (role === "user") {
-      prompt.push({
-        role: "user",
-        type: "reply",
-        prunable: true,
-        content: `${beforeUser}${userName()}${content}${afterUser}`,
-      });
-    }
-    i++;
-  }
-
-  if (messages[messages.length - 1].role !== "assistant") {
-    if (impersonationPromptFound) {
-      if (impersonationInstruction) {
-        prompt.push({
-          role: "system",
-          type: "impersonation-instruction",
-          prunable: false,
-          content: `${beforeSystem}${impersonationInstruction}${afterSystem}`,
-        });
-      }
-      prompt.push({
-        role: "user",
-        type: "reply-to-complete",
-        prunable: false,
-        content: `${beforeUser}${userName(replyAttributes)}`,
-      });
-    } else {
-      if (replyInstruction) {
-        prompt.push({
-          role: "system",
-          type: "reply-instruction",
-          prunable: false,
-          content: `${beforeSystem}${replyInstruction}${afterSystem}`,
-        });
-      }
-      prompt.push({
-        role: "assistant",
-        type: "reply-to-complete",
-        prunable: false,
-        content: `${beforeAssistant}${assistantName(replyAttributes)}`,
-      });
-    }
-  }
-
-  return prompt;
+  console.log(`Loading prompt format from ${config.promptFormat}`);
+  const presetFormatPath = path.resolve(__dirname, config.promptFormat);
+  buildLlamaPrompt = await import(presetFormatPath).then(
+    ({ default: fn }) => fn
+  );
 };
 
 const tokenize = (input) => {
@@ -296,16 +105,16 @@ const getBackendType = async () => {
   let resp;
   let errors = [];
 
-  let koboldCppUrl = koboldApiUrl;
+  let koboldCppUrl = config.koboldApiUrl;
   for (let i = 0; i < 2; i++) {
     try {
       resp = await fetch(`${koboldCppUrl}/api/extra/version`);
       if (resp.ok) {
         const json = await resp.json();
         if (json.result === "KoboldCpp") {
-          if (koboldApiUrl !== koboldCppUrl) {
-            koboldApiUrl = koboldCppUrl;
-            console.log(`Changed Kobold URL to ${koboldApiUrl}`);
+          if (config.koboldApiUrl !== koboldCppUrl) {
+            config.koboldApiUrl = koboldCppUrl;
+            console.log(`Changed Kobold URL to ${config.koboldApiUrl}`);
           }
           return "koboldcpp";
         }
@@ -314,11 +123,11 @@ const getBackendType = async () => {
       errors.push(error);
     }
 
-    koboldCppUrl = koboldApiUrl.replace(/(.*):\d+$/g, "$1:5001");
+    koboldCppUrl = config.koboldApiUrl.replace(/(.*):\d+$/g, "$1:5001");
   }
 
   try {
-    resp = await fetch(`${koboldApiUrl}/api/v1/info/version`);
+    resp = await fetch(`${config.koboldApiUrl}/api/v1/info/version`);
     if (resp.status === 200) {
       return "kobold";
     } else if (resp.status == 404) {
@@ -328,29 +137,25 @@ const getBackendType = async () => {
     errors.push(error);
   }
 
-  if (!backendType) {
-    let message = `Couldn't connect with a Kobold/KoboldCPP/Ooba backend.\n`;
-    message += errors.map((v) => v.message).join("\n");
-    throw new Error(message);
-  }
-
-  return backendType;
+  let message = `Couldn't connect with a Kobold/KoboldCPP/Ooba backend.\n`;
+  message += errors.map((v) => v.message).join("\n");
+  throw new Error(message);
 };
 
 const checkWhichBackend = async () => {
-  if (backendType === null) {
-    backendType = await getBackendType();
-    console.log({ backendType });
+  if (config.backendType === null) {
+    config.backendType = await getBackendType();
+    console.log({ backendType: config.backendType });
   }
 
-  if (backendType === "kobold") {
+  if (config.backendType === "kobold") {
     if ("stopping_strings" in generationConfig) {
       console.log(
         `Removing 'stopping_strings' since Kobold doesn't support it.`
       );
       delete generationConfig["stopping_strings"];
     }
-  } else if (backendType === "koboldcpp") {
+  } else if (config.backendType === "koboldcpp") {
     if ("stopping_strings" in generationConfig) {
       console.log(
         `Swapping 'stopping_strings' for 'stop_sequence' for KoboldCpp.`
@@ -362,7 +167,7 @@ const checkWhichBackend = async () => {
 };
 
 const getModels = async (req, res) => {
-  const resp = await fetch(`${koboldApiUrl}/api/v1/model`);
+  const resp = await fetch(`${config.koboldApiUrl}/api/v1/model`);
   const { result: modelName } = await resp.json();
 
   const result = {
@@ -469,7 +274,7 @@ const truncateGeneratedText = (stoppingStrings, text) => {
     text = text.substr(0, pos).trimRight();
   }
 
-  if (dropUnfinishedSentences) {
+  if (config.dropUnfinishedSentences) {
     const endsInLetter = text.match(/[a-zA-Z0-9]$/);
     if (endsInLetter) {
       const punctuation = [...`.?!;)]>"”*`];
@@ -522,12 +327,12 @@ const workAroundTavernDelay = (req, res) => {
 };
 
 const formatStoppingStrings = ({ user, assistant }) =>
-  defaultStoppingStrings.map((v) =>
+  config.stoppingStrings.map((v) =>
     v.replaceAll("{{user}}", user).replaceAll("{{assistant}}", assistant)
   );
 
 const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
-  const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
+  const resp = await fetch(`${config.koboldApiUrl}/api/v1/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -564,7 +369,7 @@ const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
 
 const oobaGenerateStream = (req, res, genParams) =>
   new Promise((resolve) => {
-    const ws = new WebSocket(oobaStreamUrl);
+    const ws = new WebSocket(config.oobaStreamUrl);
 
     ws.onopen = () => {
       res.writeHead(200, {
@@ -618,7 +423,7 @@ const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
     workAroundTavernDelay(req, res);
 
     const nextChunkLength =
-      backendType === "koboldcpp" ? 8 : genParams.max_length;
+      config.backendType === "koboldcpp" ? 8 : genParams.max_length;
 
     let lengthToStream = genParams.max_length;
     let generatedSoFar = "";
@@ -628,7 +433,7 @@ const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
     const stoppingStrings = formatStoppingStrings({ user, assistant });
 
     while (lengthToStream > 0) {
-      const resp = await fetch(`${koboldApiUrl}/api/v1/generate`, {
+      const resp = await fetch(`${config.koboldApiUrl}/api/v1/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -648,7 +453,7 @@ const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
       } = await resp.json();
 
       console.log("GENERATED:", text);
-      if (backendType !== "koboldcpp") {
+      if (config.backendType !== "koboldcpp") {
         text = truncateGeneratedText(stoppingStrings, text);
       } else {
         const pos = findStoppingStringPosition(stoppingStrings, text);
@@ -676,6 +481,33 @@ const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
     resolve();
   });
 
+const fixExampleMessages = ({ user, assistant, messages }) => {
+  let fixedMessages = [];
+
+  for (const { role, content, name } of messages) {
+    if (
+      role === "system" &&
+      (name === "example_assistant" || name === "example_user")
+    ) {
+      let split;
+      if (name === "example_assistant") {
+        split = content.split(`\n${assistant}:`);
+      } else {
+        split = content.split(`\n${user}:`);
+      }
+      fixedMessages.push({
+        role,
+        name,
+        content: split.map((v) => v.trim()).join("\n"),
+      });
+    } else {
+      fixedMessages.push({ role, content, name });
+    }
+  }
+
+  return fixedMessages;
+};
+
 const getChatCompletions = async (req, res) => {
   await jsonParse(req, res);
 
@@ -685,10 +517,18 @@ const getChatCompletions = async (req, res) => {
   const { user, assistant } = findCharacterNames(args);
   console.log({ user, assistant });
 
-  let prompt = buildLlamaPrompt({
+  const messages = fixExampleMessages({
     user,
     assistant,
     messages: args.messages,
+  });
+
+  let prompt = buildLlamaPrompt({
+    user,
+    assistant,
+    messages,
+    config,
+    generationConfig,
   });
 
   cleanWhitespaceInMessages(prompt);
@@ -720,7 +560,7 @@ const getChatCompletions = async (req, res) => {
   }
 
   if (args.stream) {
-    if (backendType === "ooba") {
+    if (config.backendType === "ooba") {
       await oobaGenerateStream(req, res, genParams, { user, assistant });
     } else {
       await koboldGenerateStream(req, res, genParams, { user, assistant });
@@ -731,7 +571,10 @@ const getChatCompletions = async (req, res) => {
 };
 
 const notFound = (req, res) => {
-  const buffer = toBuffer({ notfound: true });
+  const buffer = toBuffer({
+    notfound: true,
+    text: "You aren't supposed to open this in a browser.",
+  });
   res.writeHead(404, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": buffer.length,
@@ -780,15 +623,23 @@ const httpServer = http.createServer(async (req, res) => {
   }
 });
 
-httpServer.listen(port, host, (error) => {
-  if (error) {
-    console.error(error);
-    process.exit(1);
-  }
+const startServer = () => {
+  httpServer.listen(config.port, config.host, (error) => {
+    if (error) {
+      console.error(error);
+      process.exit(1);
+    }
 
-  console.log(`Using these Kobold generation settings: `, generationConfig);
-  console.log(`Proxy URL at http://${host}:${port}/v1`);
-  console.log(`Using these URLs for the backend:`);
-  console.log(`- Kobold: ${koboldApiUrl} or :5001`);
-  console.log(`- Ooba stream: ${oobaStreamUrl}`);
+    console.log(`Using these Kobold generation settings: `, generationConfig);
+    console.log(
+      `Proxy OpenAI API URL at http://${config.host}:${config.port}/v1`
+    );
+    console.log(`Using these URLs to find the backend:`);
+    console.log(`- Kobold: ${config.koboldApiUrl} or :5001`);
+    console.log(`- Ooba stream: ${config.oobaStreamUrl}`);
+  });
+};
+
+Promise.all([importSentencePiece(), importConfig(), importFetch()]).then(() => {
+  startServer();
 });
