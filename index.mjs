@@ -37,13 +37,13 @@ const importSentencePiece = async () => {
 };
 
 const importConfig = async () => {
-  const defaultConfigPath = path.resolve(__dirname, "config.default.mjs");
+  const defaultConfigPath = "./config.default.mjs";
   console.log(`Loading default settings from ${defaultConfigPath}`);
   config = await import(defaultConfigPath).then(
     ({ default: module }) => module
   );
 
-  const userConfigPath = path.resolve(__dirname, "config.mjs");
+  const userConfigPath = "./config.mjs";
   if (fs.existsSync(userConfigPath)) {
     console.log(`Loading user settings from ${userConfigPath}`);
     const userConfig = await import(userConfigPath).then(
@@ -53,7 +53,7 @@ const importConfig = async () => {
   }
 
   console.log(`Loading generation preset from ${config.generationPreset}`);
-  const presetPath = path.resolve(__dirname, config.generationPreset);
+  const presetPath = `./${config.generationPreset}`;
   generationConfig = JSON.parse(fs.readFileSync(presetPath));
 
   generationConfig.max_context_length = config.maxContextLength;
@@ -61,7 +61,7 @@ const importConfig = async () => {
   generationConfig.stopping_strings = config.stoppingStrings;
 
   console.log(`Loading prompt format from ${config.promptFormat}`);
-  const presetFormatPath = path.resolve(__dirname, config.promptFormat);
+  const presetFormatPath = `./${config.promptFormat}`;
   buildLlamaPrompt = await import(presetFormatPath).then(
     ({ default: fn }) => fn
   );
