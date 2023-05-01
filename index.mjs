@@ -14,11 +14,9 @@ let buildLlamaPrompt;
 let spp;
 
 const importFetch = async () => {
-  if (!("fetch" in global)) {
-    import("node-fetch").then(({ default: fn }) => {
-      global.fetch = fn;
-    });
-  }
+  import("node-fetch").then(({ default: fn }) => {
+    global.fetch = fn;
+  });
 };
 
 const importSentencePiece = async () => {
