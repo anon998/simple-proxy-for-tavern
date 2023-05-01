@@ -8,7 +8,7 @@ export default {
   // they're in the prompt-formats/ directory.
   promptFormat: "prompt-formats/verbose.mjs",
 
-  // max context size/prompt length
+  // max context size/prompt length, lower it if you see OOM errors
   maxContextLength: 2048,
 
   // amount of tokens to generate
@@ -39,5 +39,6 @@ export default {
   port: 29172,
 
   // used by the verbose prompt format to make the response more descriptive
+  // works well enough to move the response in that general direction
   replyAttributes: ` (2 paragraphs, engaging, natural, authentic, descriptive, creative)`,
 };
