@@ -1,6 +1,6 @@
 # Fake OpenAI API for Kobold
 
-This script changes the format of the prompt and improves the responses when using SillyTavern. The LLaMA tokenizer needs a modern Node.js version to work; I use v19 myself.
+This script changes the format of the prompt and improves the responses when using SillyTavern. The LLaMA tokenizer needs a modern Node.js version to work. Use the latest **LTS** version of Node.js.
 
 Clone this repository anywhere on your computer and run this inside the directory:
 
