@@ -52,6 +52,7 @@ export default {
     // your api key, the default is anonymous without any priority
     apiKey: "0000000000", // 0000000000
     // they just need to match the start of the name, case insensitive
+    // list of available models: https://lite.koboldai.net/
     models: [
       "alpaca-30b",
       "alpacino30b",
