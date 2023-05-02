@@ -41,4 +41,6 @@ export default {
   // used by the verbose prompt format to make the response more descriptive
   // works well enough to move the response in that general direction
   replyAttributes: ` (2 paragraphs, engaging, natural, authentic, descriptive, creative)`,
+  // it's added at the very end of the prompt
+  characterBias: '',
 };

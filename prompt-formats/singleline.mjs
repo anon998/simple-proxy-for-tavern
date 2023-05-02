@@ -36,6 +36,9 @@ Write ${assistant}'s next reply in a fictional chat between ${assistant} and ${u
   let userName = (attributes = "") => `${user}`;
   let assistantName = (attributes = "") => `${assistant}`;
   let replyAttributes = ``;
+  let characterBias = config.characterBias
+    .replaceAll("{{user}}", user)
+    .replaceAll("{{char}}", assistant);
   let mainPromptAdded = false;
   let impersonationPromptFound = false;
 
@@ -237,7 +240,9 @@ Write ${assistant}'s next reply in a fictional chat between ${assistant} and ${u
       role: "assistant",
       type: "reply-to-complete",
       prunable: false,
-      content: `${beforeAssistant}${assistantName(replyAttributes)}:`,
+      content: `${beforeAssistant}${assistantName(
+        replyAttributes
+      )}:${characterBias}`,
     });
   }
   //}

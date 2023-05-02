@@ -109,7 +109,7 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
           prunable: false,
           content: `${beforeAssistant}${assistantName(
             replyAttributes
-          )}${content}`,
+          )}${characterBias}${content}`,
         });
       } else {
         prompt.push({
@@ -159,7 +159,9 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
         role: "assistant",
         type: "reply-to-complete",
         prunable: false,
-        content: `${beforeAssistant}${assistantName(replyAttributes)}`,
+        content: `${beforeAssistant}${assistantName(
+          replyAttributes
+        )}${characterBias}`,
       });
     }
   }
