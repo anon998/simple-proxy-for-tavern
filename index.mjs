@@ -6,6 +6,9 @@ import BodyParser from "body-parser";
 import WebSocket from "ws";
 
 import {
+  autoAdjustGenerationParameters,
+  filterWorkers,
+  filterModels,
   generateText as hordeGenerateText,
   printInfo as hordePrintInfo,
   updateHordeStatus,
@@ -541,9 +544,8 @@ const hordeGenerate = async (
   { user, assistant, stream }
 ) => {
   let error;
-  let text = '';
+  let text = "";
 
-  console.log({ stream });
   if (stream) {
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
@@ -636,11 +638,19 @@ const updateHordeInfo = async () => {
 const getChatCompletions = async (req, res) => {
   await jsonParse(req, res);
 
+  const genParams = { ...generationConfig };
+
   const args = req.body;
   console.log("COMPLETIONS", args);
 
   const { user, assistant } = findCharacterNames(args);
   console.log({ user, assistant });
+
+  if (config.horde.enable) {
+    const models = filterModels(hordeState.models, config.horde.models);
+    const workers = filterWorkers(hordeState.workers, { models });
+    autoAdjustGenerationParameters(config, genParams, workers);
+  }
 
   const messages = fixExampleMessages({
     user,
@@ -671,10 +681,8 @@ const getChatCompletions = async (req, res) => {
 
   fs.writeFileSync("./prompt.txt", promptText);
 
-  const genParams = {
-    ...generationConfig,
-    prompt: promptText,
-  };
+  genParams.prompt = promptText;
+
   if ("stopping_strings" in genParams) {
     genParams["stopping_strings"] = formatStoppingStrings({ user, assistant });
     console.log({ stopping_strings: genParams["stopping_strings"] });
@@ -683,6 +691,11 @@ const getChatCompletions = async (req, res) => {
     genParams["stop_sequence"] = formatStoppingStrings({ user, assistant });
     console.log({ stop_sequence: genParams["stop_sequence"] });
   }
+
+  console.log({
+    max_length: genParams.max_length,
+    max_context_length: genParams.max_context_length,
+  });
 
   if (config.horde.enable) {
     await hordeGenerate(req, res, genParams, {

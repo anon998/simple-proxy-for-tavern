@@ -271,7 +271,7 @@ export const printInfo = (hordeState) => {
   );
 };
 
-const filterModels = (models, modelsSelected) => {
+export const filterModels = (models, modelsSelected) => {
   return models.filter((currentModel) => {
     if (currentModel.type !== "text") {
       return false;
@@ -283,7 +283,7 @@ const filterModels = (models, modelsSelected) => {
   });
 };
 
-const filterWorkers = (workers, { models, onlyTrusted }) => {
+export const filterWorkers = (workers, { models, onlyTrusted }) => {
   return workers.filter((currentWorker) => {
     if (currentWorker.type !== "text") {
       return false;
@@ -307,7 +307,7 @@ const filterWorkers = (workers, { models, onlyTrusted }) => {
   });
 };
 
-const autoAdjustGenerationParameters = (config, genParams, workers) => {
+export const autoAdjustGenerationParameters = (config, genParams, workers) => {
   let newTokens = config.maxNewTokens;
   let maxContext = config.maxContextLength;
 
@@ -352,9 +352,6 @@ export const generateText = async ({ hordeState, config, genParams }) => {
   }
 
   const models = filterModels(hordeState.models, config.horde.models);
-  const workers = filterWorkers(hordeState.workers, { models });
-
-  autoAdjustGenerationParameters(config, genParams, workers);
 
   const prompt = genParams.prompt;
   delete genParams["prompt"];
