@@ -247,5 +247,9 @@ Write ${assistant}'s next reply in a fictional chat between ${assistant} and ${u
   }
   //}
 
+  if (impersonationPromptFound) {
+    generationConfig.max_new_tokens = config.impersonationMaxNewTokens;
+  }
+
   return prompt;
 };

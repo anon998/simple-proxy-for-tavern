@@ -157,5 +157,9 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
     }
   }
 
+  if (impersonationPromptFound) {
+    generationConfig.max_new_tokens = config.impersonationMaxNewTokens;
+  }
+
   return prompt;
 };

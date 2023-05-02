@@ -14,6 +14,7 @@ export default {
   // amount of tokens to generate
   // higher values makes the available prompt space smaller
   maxNewTokens: 250,
+  impersonationMaxNewTokens: 100,
 
   // the AI stops generating when it finds these strings
   // only works for ooba and koboldcpp
