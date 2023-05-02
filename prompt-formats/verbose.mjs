@@ -14,7 +14,12 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
     `### Instruction${attributes}:\n#### ${user}:\n`;
   let assistantName = (attributes = "") =>
     `### Response${attributes}:\n#### ${assistant}:\n`;
-  let replyAttributes = config.replyAttributes;
+  let replyAttributes = config.replyAttributes
+    .replaceAll("{{user}}", user)
+    .replaceAll("{{char}}", assistant);
+  let characterBias = config.characterBias
+    .replaceAll("{{user}}", user)
+    .replaceAll("{{char}}", assistant);
   let mainPromptAdded = false;
   let impersonationPromptFound = false;
 
