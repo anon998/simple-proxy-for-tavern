@@ -1,17 +1,34 @@
 import http from "http";
 import url from "url";
 import fs from "fs";
-import path from "path";
 
 import BodyParser from "body-parser";
 import WebSocket from "ws";
 
-const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+import {
+  generateText as hordeGenerateText,
+  printInfo as hordePrintInfo,
+  updateHordeStatus,
+} from "./horde.mjs";
 
 let config;
 let generationConfig;
 let buildLlamaPrompt;
 let spp;
+let hordeState = {
+  status: true,
+  user: null,
+  news: null,
+  latestNews: null,
+  modes: null,
+  models: null,
+  workers: null,
+  modelStats: null,
+  textStats: null,
+  lastJobId: null,
+};
+
+const hordeUpdateInterval = 5 * 60 * 1000;
 
 const importFetch = async () => {
   import("node-fetch").then(({ default: fn }) => {
@@ -103,6 +120,10 @@ const getBackendType = async () => {
   let resp;
   let errors = [];
 
+  if (config.horde.enable) {
+    return "kobold";
+  }
+
   let koboldCppUrl = config.koboldApiUrl;
   for (let i = 0; i < 2; i++) {
     try {
@@ -165,22 +186,27 @@ const checkWhichBackend = async () => {
 };
 
 const getModels = async (req, res) => {
-  const resp = await fetch(`${config.koboldApiUrl}/api/v1/model`);
-  const { result: modelName } = await resp.json();
+  const models = [];
+
+  if (config.horde.enable) {
+    models.push("Horde");
+  } else {
+    const resp = await fetch(`${config.koboldApiUrl}/api/v1/model`);
+    const { result: modelName } = await resp.json();
+    models.push(modelName);
+  }
 
   const result = {
     object: "list",
-    data: [
-      {
-        id: modelName,
-        object: "model",
-        created: 0,
-        owned_by: "kobold",
-        permission: [],
-        root: modelName,
-        parent: null,
-      },
-    ],
+    data: models.map((name) => ({
+      id: name,
+      object: "model",
+      created: 0,
+      owned_by: "kobold",
+      permission: [],
+      root: name,
+      parent: null,
+    })),
   };
   console.log("MODELS", result);
   const buffer = toBuffer(result);
@@ -290,27 +316,56 @@ const truncateGeneratedText = (stoppingStrings, text) => {
 const findCharacterNames = (args) => {
   let assistant = "Bot";
   let user = "You";
-  let lastMessageIndex = args.messages.length - 1;
-  let lastMessage = args.messages[lastMessageIndex];
-  if (
-    lastMessage.role === "system" &&
-    lastMessage.content === "IMPERSONATION_PROMPT"
-  ) {
-    lastMessageIndex = args.messages.length - 2;
-    lastMessage = args.messages[lastMessageIndex];
-  }
-  if (lastMessage.role === "system") {
-    let content = lastMessage.content.trim();
-    let lines = content.split("\n");
-    if (lines.length === 1) {
-      lines = content.split("\\n");
-    }
-    if (lines.length === 2) {
-      assistant = lines[0].trim();
-      user = lines[1].trim();
-      args.messages.splice(lastMessageIndex, 1);
+
+  let msgIndex = args.messages.findIndex((v) => v.role === "system");
+  let msg = args.messages[msgIndex];
+  let parts = null;
+
+  if (msg) {
+    const newLinePos = msg.content.indexOf("\n");
+    const firstLine =
+      newLinePos === -1
+        ? msg.content.trim()
+        : msg.content.substr(0, newLinePos).trim();
+    const split = firstLine.split("|");
+    if (split.length === 2) {
+      parts = split;
     }
   }
+
+  if (!parts) {
+    msgIndex = args.messages.length - 1;
+    msg = args.messages[msgIndex];
+
+    if (msg.role === "system") {
+      if (msg.content === "IMPERSONATION_PROMPT") {
+        msgIndex -= 1;
+        msg = args.messages[msgIndex];
+      }
+
+      const content = msg.content.trim();
+      let split = content.split("\n");
+      if (split.length === 1) {
+        split = content.split("\\n");
+      }
+      if (split.length === 2) {
+        parts = split;
+      }
+    }
+  }
+
+  if (parts) {
+    assistant = parts[0].trim();
+    user = parts[1].trim();
+
+    const newLinePos = msg.content.indexOf("\n");
+    msg.content =
+      newLinePos === -1 ? "" : msg.content.substr(newLinePos + 1).trimStart();
+    if (msg.content.length === 0) {
+      args.messages.splice(msgIndex, 1);
+    }
+  }
+
   return { user, assistant };
 };
 
@@ -319,14 +374,14 @@ const workAroundTavernDelay = (req, res) => {
   const tmp = JSON.stringify({
     choices: [{ delta: { content: "" } }],
   });
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 20; i++) {
     res.write(`data: ${tmp}\n\n`, "utf-8");
   }
 };
 
 const formatStoppingStrings = ({ user, assistant }) =>
   config.stoppingStrings.map((v) =>
-    v.replaceAll("{{user}}", user).replaceAll("{{assistant}}", assistant)
+    v.replaceAll("{{user}}", user).replaceAll("{{char}}", assistant)
   );
 
 const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
@@ -479,6 +534,66 @@ const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
     resolve();
   });
 
+const hordeGenerate = async (
+  req,
+  res,
+  genParams,
+  { user, assistant, stream }
+) => {
+  let error;
+  let text = '';
+
+  console.log({ stream });
+  if (stream) {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      Connection: "keep-alive",
+      "Cache-Control": "no-cache",
+      ...corsHeaders,
+    });
+    res.flushHeaders();
+    workAroundTavernDelay(req, res);
+  }
+
+  try {
+    text = await hordeGenerateText({ hordeState, config, genParams });
+    console.log("[ GENERATED ]:", text);
+
+    const stoppingStrings = formatStoppingStrings({ user, assistant });
+    text = truncateGeneratedText(stoppingStrings, text);
+  } catch (e) {
+    error = e;
+  }
+
+  if (!stream) {
+    if (error) {
+      throw error;
+    }
+
+    const buffer = toBuffer({
+      choices: [{ message: { content: text } }],
+    });
+
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Length": buffer.length,
+      ...corsHeaders,
+    });
+
+    res.end(buffer, "utf-8");
+  } else {
+    if (error) {
+      console.error(error.stack);
+    }
+
+    const json = JSON.stringify({
+      choices: [{ delta: { content: text } }],
+    });
+    res.write(`data: ${json}\n\n`, "utf-8");
+    res.end("data: [DONE]\n\n", "utf-8");
+  }
+};
+
 const fixExampleMessages = ({ user, assistant, messages }) => {
   let fixedMessages = [];
 
@@ -504,6 +619,18 @@ const fixExampleMessages = ({ user, assistant, messages }) => {
   }
 
   return fixedMessages;
+};
+
+const updateHordeInfo = async () => {
+  const result = await updateHordeStatus({
+    config,
+    user: true,
+    modes: true,
+    models: true,
+    workers: true,
+  });
+  hordeState = { ...hordeState, ...result };
+  hordePrintInfo(hordeState);
 };
 
 const getChatCompletions = async (req, res) => {
@@ -557,7 +684,13 @@ const getChatCompletions = async (req, res) => {
     console.log({ stop_sequence: genParams["stop_sequence"] });
   }
 
-  if (args.stream) {
+  if (config.horde.enable) {
+    await hordeGenerate(req, res, genParams, {
+      user,
+      assistant,
+      stream: args.stream,
+    });
+  } else if (args.stream) {
     if (config.backendType === "ooba") {
       await oobaGenerateStream(req, res, genParams, { user, assistant });
     } else {
@@ -622,7 +755,7 @@ const httpServer = http.createServer(async (req, res) => {
 });
 
 const startServer = () => {
-  httpServer.listen(config.port, config.host, (error) => {
+  httpServer.listen(config.port, config.host, async (error) => {
     if (error) {
       console.error(error);
       process.exit(1);
@@ -634,7 +767,12 @@ const startServer = () => {
     );
     console.log(`Using these URLs to find the backend:`);
     console.log(`- Kobold: ${config.koboldApiUrl} or :5001`);
-    console.log(`- Ooba stream: ${config.oobaStreamUrl}`);
+    console.log(`- Ooba stream: ${config.oobaStreamUrl}\n`);
+
+    if (config.horde.enable) {
+      await updateHordeInfo();
+      setInterval(updateHordeInfo, hordeUpdateInterval);
+    }
   });
 };
 

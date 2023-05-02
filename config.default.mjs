@@ -44,4 +44,35 @@ export default {
   replyAttributes: ` (2 paragraphs, engaging, natural, authentic, descriptive, creative)`,
   // it's added at the very end of the prompt
   characterBias: '',
+
+  // Horde stuff
+  horde: {
+    // if it should generate text through the Horde
+    enable: false,
+    // your api key, the default is anonymous without any priority
+    apiKey: "0000000000", // 0000000000
+    // they just need to match the start of the name, case insensitive
+    models: [
+      "alpaca-30b",
+      "alpacino30b",
+      "gpt4-x-alpaca-30b",
+      "gpt4-x-alpasta-30b",
+      "gpt4-x-alpacadente-30b",
+      "llama-30b-supercot",
+      // "llama-30b",
+      // "llama-65b",
+    ],
+    // the name of the workers you want to limit the request to
+    workers: [], // max 5
+    // if enabled, it will set these values to the lowest common value between
+    // the available workers
+    autoAdjustMaxNewTokens: true,
+    autoAdjustMaxContext: true,
+    // if you only want to use trusted workers
+    onlyTrusted: false,
+    // allow slow workers to pick the request
+    slowWorkers: false,
+    // the softprompt you want to be used
+    softprompt: null,
+  },
 };
