@@ -1,6 +1,23 @@
 # Fake OpenAI API for Kobold
 
-This script changes the format of the prompt and improves the responses when using SillyTavern. The LLaMA tokenizer needs a modern Node.js version to work. Use the latest **LTS** version of Node.js.
+_A workaround to have more control about the prompt format when using SillyTavern and local models._
+
+This script sits between SillyTavern and a backend like Kobold and it lets you change how the final prompt text will look. By default, it includes a prompt format that works well with LLaMA models tuned to follow instructions. It does this by presenting itself to SillyTavern as an OpenAI API, processing the conversation, and sending the prompt text to the backend.
+
+The LLaMA tokenizer needs a modern Node.js version to work. Use the latest **LTS** version of Node.js.
+
+You need a local backend like [KoboldAI](https://github.com/0cc4m/KoboldAI), [koboldcpp](https://github.com/LostRuins/koboldcpp) or [Ooba in API mode](https://github.com/oobabooga/text-generation-webui) to load the model, but it also works with the [Horde](http://koboldai.net/), where people volunteer to share their GPUs online.
+
+## Table of Contents
+
+- [Installation](#installation)
+  - [Tavern Settings](#tavern-settings)
+  - [Notes](#notes)
+- [File Structure](#file-structure)
+- [Examples](#examples)
+- [Changelog](#changelog)
+
+## Installation
 
 Clone this repository anywhere on your computer and run this inside the directory:
 
@@ -16,10 +33,11 @@ npx nodemon index.mjs
 ```
 
 Copy the file **config.default.mjs** to **config.mjs** if you want to make changes to the config. That way they aren't lost during updates.
+If you're going to use the Horde, set your key and the models you want to use there.
 
 There are now generation and prompt formats presets in the _presets/_ and _prompt-formats/_ folders.
 
-## Tavern Settings
+### Tavern Settings
 
 After pressing the second button of the top panel, select "OpenAI" as the API and write a random API key; it doesn't matter.
 ![api connections](./img/api.png)
@@ -36,7 +54,7 @@ Press the first button and scroll to the bottom, there's a "Create new preset" b
 
 Press the second button from the top panel again and select "Connect".
 
-## Notes
+### Notes
 
 Leave Context Size high so Tavern doesn't truncate the messages, we're doing that in this script.
 
@@ -58,13 +76,20 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 - **index.mjs**: proxy code
 - **presets/\*.json**: AI generation presets
 - **prompt-formats/\*.mjs**: functions to build the prompt
+- **tokenizer.model**: LLaMA tokenizer model from huggingface.
 
 ## Examples
 
 [Rentry with examples from /lmg/](https://rentry.org/llama-examples)
-![rp example](https://files.catbox.moe/th40hm.png)
+![rp example](./img/example.jpg)
 
 ## Changelog
+
+### 2023-05-02
+- Added Horde support, see config.default.mjs.
+- Added character bias (a string added at the very end of the prompt)
+- Added different configuration variable to set the max amount of tokens to generate while using impersonation.
+- Added support to set the character names in Main Prompt in the first line with this format "{{char}}|{{user}}", freeing the jailbreak. The following lines after the first one can be used normally.
 
 ### 2023-04-29
 
