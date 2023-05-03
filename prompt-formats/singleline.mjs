@@ -1,15 +1,5 @@
 // made by another anon here: https://desuarchive.org/g/thread/93064422/#93075365
 
-const findLastNewChat = (messages) => {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const { role, content } = messages[i];
-    if (role === "system" && content === "[Start a new chat]") {
-      return i;
-    }
-  }
-  return -1;
-};
-
 const addNewLineStoppingString = (config) => {
   const found = config.stoppingStrings.find((v) => v === "\n");
   if (!found) {
@@ -81,9 +71,6 @@ Write ${assistant}'s next reply in a fictional chat between ${assistant} and ${u
     });
   }
 
-  const indexLastNewChat = findLastNewChat(messages);
-
-  let i = 0;
   for (let { role, content, name } of messages) {
     content = content.trim();
     if (role === "system") {
@@ -151,7 +138,6 @@ Write ${assistant}'s next reply in a fictional chat between ${assistant} and ${u
         content: `${beforeUser}${userName()} ${content}${afterUser}`,
       });
     }
-    i++;
   }
 
   prompt.push({

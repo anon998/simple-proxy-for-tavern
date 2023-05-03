@@ -212,7 +212,6 @@ const wait = (ms) =>
   });
 
 export const updateHordeStatus = async (args) => {
-  const delay = 1500;
   const result = {};
 
   console.log("Fetching Horde info, please wait...");
