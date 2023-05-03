@@ -43,7 +43,9 @@ export default {
   // works well enough to move the response in that general direction
   replyAttributes: ` (2 paragraphs, engaging, natural, authentic, descriptive, creative)`,
   // it's added at the very end of the prompt
-  characterBias: '',
+  // if the value is "\"", the AI will always start with dialogue in quotes.
+  characterBias: "",
+  includeCharacterBiasInOutput: true,
 
   // Horde stuff
   horde: {

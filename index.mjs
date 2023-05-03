@@ -430,6 +430,12 @@ const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
   const stoppingStrings = formatStoppingStrings({ user, assistant });
   text = truncateGeneratedText(stoppingStrings, text);
 
+  if (text && config.includeCharacterBiasInOutput) {
+    text = `${config.characterBias}${
+      config.backendType === "koboldcpp" ? text : text.trimStart()
+    }`;
+  }
+
   const buffer = toBuffer({
     choices: [{ message: { content: text } }],
   });
@@ -471,13 +477,22 @@ const oobaGenerateStream = (req, res, genParams) =>
       resolve();
     };
 
+    let outputSent = false;
+
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       console.log(data);
 
       if (data.event === "text_stream") {
+        let text = data.text;
+
+        if (!outputSent && text && config.includeCharacterBiasInOutput) {
+          text = `${config.characterBias}${text.trimStart()}`;
+          outputSent = true;
+        }
+
         const json = JSON.stringify({
-          choices: [{ delta: { content: data.text } }],
+          choices: [{ delta: { content: text } }],
         });
         res.write(`data: ${json}\n\n`, "utf-8");
       } else if (data.event === "stream_end") {
@@ -543,6 +558,12 @@ const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
         }
       }
 
+      if (!generatedSoFar && text && config.includeCharacterBiasInOutput) {
+        text = `${config.characterBias}${
+          config.backendType === "koboldcpp" ? text : text.trimStart()
+        }`;
+      }
+
       const json = JSON.stringify({
         choices: [{ delta: { content: text } }],
       });
@@ -580,6 +601,10 @@ const hordeGenerate = async (
   try {
     text = await hordeGenerateText({ hordeState, config, genParams });
     console.log("[ GENERATED ]:", text);
+
+    if (text && config.includeCharacterBiasInOutput) {
+      text = `${config.characterBias}${text.trimStart()}`;
+    }
 
     const stoppingStrings = formatStoppingStrings({ user, assistant });
     text = truncateGeneratedText(stoppingStrings, text);
