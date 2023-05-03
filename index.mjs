@@ -646,12 +646,6 @@ const getChatCompletions = async (req, res) => {
   const { user, assistant } = findCharacterNames(args);
   console.log({ user, assistant });
 
-  if (config.horde.enable) {
-    const models = filterModels(hordeState.models, config.horde.models);
-    const workers = filterWorkers(hordeState.workers, { models });
-    autoAdjustGenerationParameters(config, genParams, workers);
-  }
-
   const messages = fixExampleMessages({
     user,
     assistant,
@@ -671,6 +665,12 @@ const getChatCompletions = async (req, res) => {
   const tokens = tokenize(prompt.map((v) => v.content));
   for (let i = 0; i < prompt.length; i++) {
     prompt[i].tokenCount = tokens[i];
+  }
+
+  if (config.horde.enable) {
+    const models = filterModels(hordeState.models, config.horde.models);
+    const workers = filterWorkers(hordeState.workers, { models });
+    autoAdjustGenerationParameters(config, genParams, workers);
   }
 
   prompt = limitMessagesInContext(prompt, generationConfig);
