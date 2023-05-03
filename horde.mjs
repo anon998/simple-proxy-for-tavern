@@ -239,7 +239,7 @@ export const updateHordeStatus = async (args) => {
     result.modelStats = await getModelStats();
   }
   if (args.textStats) {
-    result.textStats = getTextStats();
+    result.textStats = await getTextStats();
   }
 
   return result;
