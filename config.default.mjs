@@ -46,6 +46,9 @@ export default {
   // if the value is "\"", the AI will always start with dialogue in quotes.
   characterBias: "",
   includeCharacterBiasInOutput: true,
+  // used by the singleline prompt format
+  // if empty it will just complete the last AI reply, otherwise it sends this message
+  silentMessage: "[says nothing]",
 
   // Horde stuff
   horde: {
