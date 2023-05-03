@@ -1,6 +1,6 @@
 # Fake OpenAI API for Kobold
 
-_A workaround to have more control about the prompt format when using SillyTavern and local models._
+_A workaround to have more control over the prompt format when using SillyTavern and local models._
 
 This script sits between SillyTavern and a backend like Kobold and it lets you change how the final prompt text will look. By default, it includes a prompt format that works well with LLaMA models tuned to follow instructions. It does this by presenting itself to SillyTavern as an OpenAI API, processing the conversation, and sending the prompt text to the backend.
 
@@ -12,6 +12,8 @@ You need a local backend like [KoboldAI](https://github.com/0cc4m/KoboldAI), [ko
 
 - [Installation](#installation)
   - [Tavern Settings](#tavern-settings)
+    - [Configuration File](#configuration-file)
+    - [Manual](#manual)
   - [Notes](#notes)
 - [File Structure](#file-structure)
 - [Examples](#examples)
@@ -39,16 +41,19 @@ There are now generation and prompt formats presets in the _presets/_ and _promp
 
 ### Tavern Settings
 
+Download [alpaca.settings](./img/alpaca.settings) and put it in SillyTavern/public/OpenAI Settings/ and reload or start Tavern. Some of the values in the next steps will already be complete.
+
 After pressing the second button of the top panel, select "OpenAI" as the API and write a random API key; it doesn't matter.
 ![api connections](./img/api.png)
 
-Press the first button and scroll to the bottom, there's a "Create new preset" button; create one called "Alpaca."
+Press the first button and select the "alpaca" preset. If it doesn't exist, create one. In older versions, the button might be at the bottom of that panel or to the right of the select box.
 
 - Scroll up and set "OpenAI Reverse Proxy" to http://127.0.0.1:29172/v1
-- Delete Main Prompt, NSFW Prompt, Jailbreak Prompt, Impersonation Prompt.
+- Change Main Prompt to "{{char}}|{{user}}". If you want to add your own text there, do it on the second line.
+- Delete the default NSFW Prompt and Jailbreak Prompt.
 - Change Impersonation Prompt to "IMPERSONATION_PROMPT".
-- Change Jailbreak Prompt to "{{char}}\n{{user}}".
-- Leave only NSFW Toggle and Send Jailbreak active, and Streaming if you want that too.
+- On the checkboxes above, enable NSFW Toggle.
+- Enable Streaming too if you want that.
 
 ![settings screenshot](./img/settings.png)
 
@@ -58,10 +63,10 @@ Press the second button from the top panel again and select "Connect".
 
 Leave Context Size high so Tavern doesn't truncate the messages, we're doing that in this script.
 
-Tavern settings like Temperature, Max Response Length, etc. are ignored, edit _generationPreset_ in conf.mjs to select a preset, the presets are located in the presets/ directory.
-There's also a _replyAttributes_ variable that makes the AI give more descriptive responses.
+Tavern settings like Temperature, Max Response Length, etc. are ignored. Edit _generationPreset_ in conf.mjs to select a preset. The presets are located in the presets/ directory.
+There's also a _replyAttributes_ variable that, by default, alters the prompt to induce the AI into giving more descriptive responses.
 
-If you want to always keep the example messages of the character in the prompt you have to edit _keepExampleMessagesInPrompt_ in conf.mjs while also enabling the option in the Tavern UI.
+If you want to always keep the example messages of the character in the prompt, you have to edit _keepExampleMessagesInPrompt_ in conf.mjs while also enabling the option in the Tavern UI.
 
 The last prompt is saved as prompt.txt. You can use it to check that everything is okay with the way the prompt is generated.
 
@@ -74,7 +79,8 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 - **config.default.mjs**: default settings
 - **config.mjs**: user settings, if exists
 - **index.mjs**: proxy code
-- **presets/\*.json**: AI generation presets
+- **horde.mjs**: horde code
+- **presets/\*.json**: AI generation presets. The defaults come from Kobold.
 - **prompt-formats/\*.mjs**: functions to build the prompt
 - **tokenizer.model**: LLaMA tokenizer model from huggingface.
 
