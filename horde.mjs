@@ -254,6 +254,7 @@ export const printInfo = (hordeState) => {
 "${hordeState?.latestNews?.newspiece}"
 `);
   }
+  console.log("List of models online: https://lite.koboldai.net/");
   console.log(
     `HORDE STATUS: ${hordeState?.status ? "online" : "offline"}${
       hordeState?.modes?.maintenance_mode ? ", in maintenance" : ""
@@ -361,7 +362,7 @@ export const generateText = async ({ hordeState, config, genParams }) => {
     params: genParams,
     trusted_workers: config.horde.onlyTrusted,
     slow_workers: config.horde.slowWorkers,
-    models: models.map((v) => v.name),
+    models: models.length ? models.map((v) => v.name) : config.horde.models,
   };
   if (config.horde.softprompt) {
     payload.softprompt = config.horde.softprompt;
