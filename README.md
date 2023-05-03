@@ -28,7 +28,7 @@ npm install
 node index.mjs
 ```
 
-You can replace the last line with this if you want it to reload automatically when editing the file:
+You can replace the last line with this if you want it to reload automatically when editing any file:
 
 ```sh
 npx nodemon index.mjs
@@ -49,8 +49,8 @@ After pressing the second button of the top panel, select "OpenAI" as the API an
 Press the first button and select the "alpaca" preset. If it doesn't exist, create one. In older versions, the button might be at the bottom of that panel or to the right of the select box.
 
 - Scroll up and set "OpenAI Reverse Proxy" to http://127.0.0.1:29172/v1
-- Change Main Prompt to "{{char}}|{{user}}". If you want to add your own text there, do it on the second line.
-- Delete the default NSFW Prompt and Jailbreak Prompt.
+- Delete the default Main Prompt and NSFW Prompt.
+- Change Jailbreak Prompt to "{{char}}|{{user}}". If you want to add your own text there, do it on the second line.
 - Change Impersonation Prompt to "IMPERSONATION_PROMPT".
 - On the checkboxes above, enable NSFW Toggle.
 - Enable Streaming too if you want that.
@@ -90,6 +90,11 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 ![rp example](./img/example.jpg)
 
 ## Changelog
+
+### 2023-05-02
+- Reverted "add support to set the character names in the main prompt." That prompt is not sent when using impersonation. Changed it back to the first line of the Jailbreak.
+- Added an option to include the character bias in the final text generated. It's enabled by default.
+- Fixed how the singleline prompt format finds who sent the last message and added an option to customize the "[says nothing]" message.
 
 ### 2023-05-02
 - Added Horde support, see config.default.mjs.

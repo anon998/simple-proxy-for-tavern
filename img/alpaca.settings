@@ -9,9 +9,9 @@
   "enhance_definitions": false,
   "wrap_in_quotes": false,
   "nsfw_first": false,
-  "main_prompt": "{{char}}|{{user}}",
+  "main_prompt": "",
   "nsfw_prompt": "",
-  "jailbreak_prompt": "",
+  "jailbreak_prompt": "{{char}}|{{user}}",
   "jailbreak_system": true,
   "impersonation_prompt": "IMPERSONATION_PROMPT"
 }
