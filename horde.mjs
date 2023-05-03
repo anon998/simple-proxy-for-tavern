@@ -2,8 +2,8 @@ import fetch from "node-fetch";
 
 const hordeUrl = "https://horde.koboldai.net/api";
 
-//const agent = 'simple-proxy-for-tavern:1:https://github.com/anon998/simple-proxy-for-tavern';
-const agent = undefined;
+const agent =
+  "simple-proxy-for-tavern:1:https://github.com/anon998/simple-proxy-for-tavern";
 
 const hordeHeaders = {
   ...(agent ? { "Client-Agent": agent } : {}),
