@@ -320,23 +320,12 @@ const findCharacterNames = (args) => {
   let assistant = "Bot";
   let user = "You";
 
-  let msgIndex = args.messages.findIndex((v) => v.role === "system");
-  let msg = args.messages[msgIndex];
-  let parts = null;
+  let msgIndex;
+  let msg;
+  let parts;
+  let partsNewLineSplit;
 
-  if (msg) {
-    const newLinePos = msg.content.indexOf("\n");
-    const firstLine =
-      newLinePos === -1
-        ? msg.content.trim()
-        : msg.content.substr(0, newLinePos).trim();
-    const split = firstLine.split("|");
-    if (split.length === 2) {
-      parts = split;
-    }
-  }
-
-  if (!parts) {
+  if (!parts && !partsNewLineSplit) {
     msgIndex = args.messages.length - 1;
     msg = args.messages[msgIndex];
 
@@ -347,14 +336,42 @@ const findCharacterNames = (args) => {
       }
 
       const content = msg.content.trim();
-      let split = content.split("\n");
+      const newLinePos = content.indexOf("\n");
+      const firstLine =
+        newLinePos === -1 ? content : content.substr(0, newLinePos).trim();
+
+      let split = firstLine.split("\\n");
       if (split.length === 1) {
-        split = content.split("\\n");
+        split = firstLine.split("|");
       }
       if (split.length === 2) {
         parts = split;
+      } else {
+        split = content.split("\n");
+        if (split.length === 2) {
+          partsNewLineSplit = split;
+        }
       }
     }
+  }
+
+  if (!parts && !partsNewLineSplit) {
+    msgIndex = args.messages.findIndex((v) => v.role === "system");
+    msg = args.messages[msgIndex];
+
+    const content = msg.content.trim();
+    const newLinePos = content.indexOf("\n");
+    const firstLine =
+      newLinePos === -1 ? content : content.substr(0, newLinePos).trim();
+
+    const split = firstLine.split("|");
+    if (split.length === 2) {
+      parts = split;
+    }
+  }
+
+  if (!parts && partsNewLineSplit) {
+    parts = partsNewLineSplit;
   }
 
   if (parts) {
@@ -363,7 +380,10 @@ const findCharacterNames = (args) => {
 
     const newLinePos = msg.content.indexOf("\n");
     msg.content =
-      newLinePos === -1 ? "" : msg.content.substr(newLinePos + 1).trimStart();
+      newLinePos === -1 || partsNewLineSplit
+        ? ""
+        : msg.content.substr(newLinePos + 1).trimStart();
+
     if (msg.content.length === 0) {
       args.messages.splice(msgIndex, 1);
     }
