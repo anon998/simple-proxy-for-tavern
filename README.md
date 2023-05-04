@@ -4,7 +4,7 @@ _A workaround to have more control over the prompt format when using SillyTavern
 
 This script sits between SillyTavern and a backend like Kobold and it lets you change how the final prompt text will look. By default, it includes a prompt format that works well with LLaMA models tuned to follow instructions. It does this by presenting itself to SillyTavern as an OpenAI API, processing the conversation, and sending the prompt text to the backend.
 
-The LLaMA tokenizer needs a modern Node.js version to work. Use the latest **LTS** version of Node.js.
+The LLaMA tokenizer needs a modern Node.js version to work. Use the latest **LTS** version of [Node.js](https://nodejs.org).
 
 You need a local backend like [KoboldAI](https://github.com/0cc4m/KoboldAI), [koboldcpp](https://github.com/LostRuins/koboldcpp) or [Ooba in API mode](https://github.com/oobabooga/text-generation-webui) to load the model, but it also works with the [Horde](http://koboldai.net/), where people volunteer to share their GPUs online.
 
@@ -21,18 +21,12 @@ You need a local backend like [KoboldAI](https://github.com/0cc4m/KoboldAI), [ko
 
 ## Installation
 
-Clone this repository anywhere on your computer and run this inside the directory:
+You'll need SillyTavern, the proxy, and a backend running. This guide is for the proxy.
 
-```sh
-npm install
-node index.mjs
-```
-
-You can replace the last line with this if you want it to reload automatically when editing any file:
-
-```sh
-npx nodemon index.mjs
-```
+- Install the LTS version of [Node.js](https://nodejs.org).
+- Clone this repository with Git, or click on Code -> [Download ZIP](https://github.com/anon998/simple-proxy-for-tavern/archive/refs/heads/main.zip) and extract it anywhere on your computer.
+- On Windows, open the folder you extracted or cloned and double-click _start.bat_
+- On Linux, navigate to the directory with a terminal and run _./start.sh_
 
 Copy the file **config.default.mjs** to **config.mjs** if you want to make changes to the config. That way they aren't lost during updates.
 If you're going to use the Horde, set your key and the models you want to use there.
@@ -52,7 +46,7 @@ Press the first button and select the "alpaca" preset. If it doesn't exist, crea
 - Delete the default Main Prompt and NSFW Prompt.
 - Change Jailbreak Prompt to "{{char}}|{{user}}". If you want to add your own text there, do it on the second line.
 - Change Impersonation Prompt to "IMPERSONATION_PROMPT".
-- On the checkboxes above, enable NSFW Toggle.
+- On the checkboxes above, enable NSFW Toggle and Send Jailbreak.
 - Enable Streaming too if you want that.
 
 ![settings screenshot](./img/settings.png)
@@ -91,7 +85,8 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 
 ## Changelog
 
-### 2023-05-02
+### 2023-05-03
+- Added startup scripts.
 - Reverted "add support to set the character names in the main prompt." That prompt is not sent when using impersonation. Changed it back to the first line of the Jailbreak.
 - Added an option to include the character bias in the final text generated. It's enabled by default.
 - Fixed how the singleline prompt format finds who sent the last message and added an option to customize the "[says nothing]" message.
