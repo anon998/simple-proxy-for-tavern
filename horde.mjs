@@ -393,6 +393,7 @@ export const generateText = async ({ hordeState, config, genParams }) => {
 
   const prompt = genParams.prompt;
   delete genParams["prompt"];
+  delete genParams["quiet"];
 
   const payload = {
     prompt,
@@ -400,12 +401,13 @@ export const generateText = async ({ hordeState, config, genParams }) => {
     trusted_workers: config.horde.onlyTrusted,
     slow_workers: config.horde.slowWorkers,
     models: models.length ? models.map((v) => v.name) : config.horde.models,
+    workers: config.horde.workers,
   };
   if (config.horde.softprompt) {
     payload.softprompt = config.horde.softprompt;
   }
-  if (config.horde.workers.length) {
-    payload.workers = config.horde.workers;
+  if ((hordeState?.user?.kudos ?? 0) < 250) {
+    payload.slow_workers = true;
   }
 
   console.log({ hordePayload: { ...payload, prompt: "[...]" } });

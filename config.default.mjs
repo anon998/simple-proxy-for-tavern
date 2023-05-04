@@ -77,7 +77,7 @@ export default {
     // if you only want to use trusted workers
     onlyTrusted: false,
     // allow slow workers to pick the request
-    slowWorkers: false,
+    slowWorkers: true,
     // the softprompt you want to be used
     softprompt: null,
   },

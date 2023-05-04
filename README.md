@@ -88,12 +88,15 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 ## Changelog
 
 ### 2023-05-03
+
+- Fixed Horde anonymous requests.
 - Added startup scripts.
 - Reverted "add support to set the character names in the main prompt." That prompt is not sent when using impersonation. Changed it back to the first line of the Jailbreak.
 - Added an option to include the character bias in the final text generated. It's enabled by default.
 - Fixed how the singleline prompt format finds who sent the last message and added an option to customize the "[says nothing]" message.
 
 ### 2023-05-02
+
 - Added Horde support, see config.default.mjs.
 - Added character bias (a string added at the very end of the prompt)
 - Added different configuration variable to set the max amount of tokens to generate while using impersonation.
