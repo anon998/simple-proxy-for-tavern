@@ -49,7 +49,7 @@ const importSentencePiece = async () => {
     spp = null;
     console.error(error.message);
     console.error(
-      `\nERROR: Couldn't load the tokenizer, maybe your Node.js version is too old.`
+      `\nERROR: Couldn't load the tokenizer, maybe your Node.js version is too old, or you didn't run npm install inside the proxy directory.`
     );
   }
 };
