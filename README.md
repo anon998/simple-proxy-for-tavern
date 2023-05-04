@@ -89,6 +89,7 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 
 ### 2023-05-03
 
+- Added to cancel the previous request, at least when using koboldcpp and the horde, and wait for the previous request to finish before starting the new one.
 - Fixed Horde anonymous requests.
 - Added startup scripts.
 - Reverted "add support to set the character names in the main prompt." That prompt is not sent when using impersonation. Changed it back to the first line of the Jailbreak.

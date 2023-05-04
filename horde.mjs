@@ -377,18 +377,6 @@ export const generateText = async ({ hordeState, config, genParams }) => {
     throw new Error("Horde is in maintenance mode.");
   }
 
-  if (hordeState.lastJobId) {
-    const cancelId = hordeState.lastJobId;
-    console.log(`Cancelling previous job ${cancelId}...`);
-    cancelTextGeneration(cancelId)
-      .then(() => {
-        console.log(`Previous job ${cancelId} cancelled!`);
-      })
-      .catch((error) => {
-        console.error(error.message);
-      });
-  }
-
   const models = filterModels(hordeState.models, config.horde.models);
 
   const prompt = genParams.prompt;

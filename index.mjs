@@ -7,6 +7,7 @@ import WebSocket from "ws";
 
 import {
   autoAdjustGenerationParameters,
+  cancelTextGeneration as hordeCancelTextGeneration,
   filterWorkers,
   filterModels,
   generateText as hordeGenerateText,
@@ -30,6 +31,9 @@ let hordeState = {
   textStats: null,
   lastJobId: null,
 };
+
+let abortPreviousRequest;
+let waitingForPreviousRequest;
 
 const hordeUpdateInterval = 5 * 60 * 1000;
 
@@ -408,6 +412,8 @@ const formatStoppingStrings = ({ user, assistant }) =>
   );
 
 const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
+  abortPreviousRequest = () => {};
+
   const resp = await fetch(`${config.koboldApiUrl}/api/v1/generate`, {
     method: "POST",
     headers: {
@@ -451,6 +457,8 @@ const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
 
 const oobaGenerateStream = (req, res, genParams) =>
   new Promise((resolve) => {
+    abortPreviousRequest = () => {};
+
     const ws = new WebSocket(config.oobaStreamUrl);
 
     ws.onopen = () => {
@@ -504,6 +512,11 @@ const oobaGenerateStream = (req, res, genParams) =>
 
 const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
   new Promise(async (resolve) => {
+    let lengthToStream = genParams.max_length;
+    abortPreviousRequest = () => {
+      lengthToStream = 0;
+    };
+
     res.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
       Connection: "keep-alive",
@@ -516,7 +529,6 @@ const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
     const nextChunkLength =
       config.backendType === "koboldcpp" ? 8 : genParams.max_length;
 
-    let lengthToStream = genParams.max_length;
     let generatedSoFar = "";
 
     const params = { ...genParams, max_length: nextChunkLength };
@@ -586,6 +598,20 @@ const hordeGenerate = async (
 ) => {
   let error;
   let text = "";
+
+  abortPreviousRequest = () => {
+    const cancelId = hordeState.lastJobId;
+    if (!cancelId) {
+      return;
+    }
+    hordeCancelTextGeneration(cancelId)
+      .then(() => {
+        console.log(`Previous job ${cancelId} cancelled!`);
+      })
+      .catch((error) => {
+        console.error(error.message);
+      });
+  };
 
   if (stream) {
     res.writeHead(200, {
@@ -787,6 +813,19 @@ const handleError = (req, res, error) => {
   }
 };
 
+const cancelPreviousRequest = async () => {
+  if (abortPreviousRequest) {
+    abortPreviousRequest();
+    abortPreviousRequest = null;
+  }
+  if (waitingForPreviousRequest) {
+    console.log("Waiting for last request to finish.");
+    await waitingForPreviousRequest;
+    waitingForPreviousRequest = null;
+    console.log("Previous request finished.");
+  }
+};
+
 const httpServer = http.createServer(async (req, res) => {
   console.log(`${req.method} ${req.url}`);
 
@@ -803,7 +842,18 @@ const httpServer = http.createServer(async (req, res) => {
     if (req.method === "GET" && path === "/v1/models") {
       await getModels(req, res);
     } else if (req.method === "POST" && path === "/v1/chat/completions") {
-      await getChatCompletions(req, res);
+      let previousRequestResolve;
+
+      await cancelPreviousRequest();
+      waitingForPreviousRequest = new Promise((resolve) => {
+        previousRequestResolve = resolve;
+      });
+
+      try {
+        await getChatCompletions(req, res);
+      } finally {
+        previousRequestResolve();
+      }
     } else {
       await notFound(req, res);
     }
