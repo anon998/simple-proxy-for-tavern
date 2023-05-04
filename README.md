@@ -35,12 +35,14 @@ There are now generation and prompt formats presets in the _presets/_ and _promp
 
 ### Tavern Settings
 
-Download [alpaca.settings](./img/alpaca.settings) and put it in SillyTavern/public/OpenAI Settings/ and reload or start Tavern. Some of the values in the next steps will already be complete.
+Download <a href="https://raw.githubusercontent.com/anon998/simple-proxy-for-tavern/main/img/alpaca.settings">alpaca.settings</a> and put it in SillyTavern/public/OpenAI Settings/ and reload or start Tavern. Some of the values in the next steps will already be complete.
 
 After pressing the second button of the top panel, select "OpenAI" as the API and write a random API key; it doesn't matter.
 ![api connections](./img/api.png)
 
-Press the first button and select the "alpaca" preset. If it doesn't exist, create one. In older versions, the button might be at the bottom of that panel or to the right of the select box.
+Press the first button and select the "alpaca" preset. If it was already selected, you might need to change to Default and then back to alpaca for the settings to load correctly.
+
+If it doesn't exist, create one. In older versions, the button might be at the bottom of that panel or to the right of the select box.
 
 - Scroll up and set "OpenAI Reverse Proxy" to http://127.0.0.1:29172/v1
 - Delete the default Main Prompt and NSFW Prompt.
