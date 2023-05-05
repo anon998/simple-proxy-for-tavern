@@ -849,6 +849,11 @@ const httpServer = http.createServer(async (req, res) => {
         previousRequestResolve = resolve;
       });
 
+      req.socket.on('close', () => {
+        abortPreviousRequest?.();
+        abortPreviousRequest = null;
+      });
+
       try {
         await getChatCompletions(req, res);
       } finally {
