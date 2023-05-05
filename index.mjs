@@ -412,7 +412,9 @@ const formatStoppingStrings = ({ user, assistant }) =>
   );
 
 const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
-  abortPreviousRequest = () => {};
+  abortPreviousRequest = () => {
+    abortPreviousRequest = null;
+  };
 
   const resp = await fetch(`${config.koboldApiUrl}/api/v1/generate`, {
     method: "POST",
@@ -457,9 +459,12 @@ const koboldGenerate = async (req, res, genParams, { user, assistant }) => {
 
 const oobaGenerateStream = (req, res, genParams) =>
   new Promise((resolve) => {
-    abortPreviousRequest = () => {};
-
     const ws = new WebSocket(config.oobaStreamUrl);
+
+    abortPreviousRequest = () => {
+      abortPreviousRequest = null;
+      ws.close();
+    };
 
     ws.onopen = () => {
       res.writeHead(200, {
@@ -514,6 +519,7 @@ const koboldGenerateStream = (req, res, genParams, { user, assistant }) =>
   new Promise(async (resolve) => {
     let lengthToStream = genParams.max_length;
     abortPreviousRequest = () => {
+      abortPreviousRequest = null;
       lengthToStream = 0;
     };
 
@@ -600,6 +606,7 @@ const hordeGenerate = async (
   let text = "";
 
   abortPreviousRequest = () => {
+    abortPreviousRequest = null;
     const cancelId = hordeState.lastJobId;
     if (!cancelId) {
       return;
@@ -814,10 +821,8 @@ const handleError = (req, res, error) => {
 };
 
 const cancelPreviousRequest = async () => {
-  if (abortPreviousRequest) {
-    abortPreviousRequest();
-    abortPreviousRequest = null;
-  }
+  abortPreviousRequest?.();
+
   if (waitingForPreviousRequest) {
     console.log("Waiting for last request to finish.");
     await waitingForPreviousRequest;
@@ -851,12 +856,12 @@ const httpServer = http.createServer(async (req, res) => {
 
       req.socket.on('close', () => {
         abortPreviousRequest?.();
-        abortPreviousRequest = null;
       });
 
       try {
         await getChatCompletions(req, res);
       } finally {
+        abortPreviousRequest = null;
         previousRequestResolve();
       }
     } else {
