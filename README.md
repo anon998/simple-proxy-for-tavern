@@ -87,6 +87,10 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 
 ## Changelog
 
+### 2023-05-04
+
+- Added to abort the request when the stop streaming button is pressed.
+
 ### 2023-05-03
 
 - Added to cancel the previous request, at least when using koboldcpp and the horde, and wait for the previous request to finish before starting the new one.
