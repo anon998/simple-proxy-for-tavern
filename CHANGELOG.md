@@ -8,6 +8,7 @@
 - Added [bluemoon](https://huggingface.co/reeducator/bluemoonrp-13b) format.
 - Added [vicuna-cocktail](https://huggingface.co/reeducator/vicuna-13b-cocktail) format.
 - Added an alternative verbose format.
+- Added basic superbig support. There's a new config option and a python script at src/basic-superbig-api.py. It's probably easier to do "pip install superbig" in ooba's env and run the script inside it.
 
 ### 2023-05-04
 

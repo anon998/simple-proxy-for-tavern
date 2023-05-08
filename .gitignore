@@ -5,6 +5,7 @@
 /presets/*
 /prompt-formats/*
 
+# js
 logs
 *.log
 npm-debug.log*
@@ -17,3 +18,10 @@ pids
 node_modules/
 .env*
 .directory
+
+# python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.chroma/

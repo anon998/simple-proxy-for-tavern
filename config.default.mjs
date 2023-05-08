@@ -54,6 +54,10 @@ export default {
 
   seed: null,
 
+  // https://github.com/kaiokendev/superbig
+  superbig: false,
+  superbigApi: 'http://127.0.0.1:29180',
+
   // Horde stuff
   horde: {
     // if it should generate text through the Horde

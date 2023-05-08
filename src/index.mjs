@@ -296,6 +296,87 @@ const updateHordeInfo = async () => {
   hordePrintInfo(hordeState);
 };
 
+const getSuperBigContext = async (messages) => {
+  const chatlog = [];
+
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const content = msg.content
+      .replaceAll("#", "")
+      .replaceAll("\n", " ")
+      .trim();
+
+    const types = [
+      "example-assistant",
+      "example-user",
+      "assistant-msg",
+      "user-msg",
+    ];
+
+    if (types.indexOf(msg.metadata?.type) !== -1) {
+      chatlog.push({ ...msg, content });
+    }
+  }
+
+  const lastMessages = [];
+  for (let i = 0; i < 1; i++) {
+    lastMessages.push(chatlog.pop());
+  }
+  lastMessages.reverse();
+
+  const data = {
+    chatlog: chatlog.map((v) => v.content).join("\n"),
+    last_messages: lastMessages.map((v) => v.content).join("\n"),
+  };
+
+  const resp = await fetch(`${config.superbigApi}/api/get-messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+
+  let { text } = await resp.json();
+  text = text.substring(data.last_messages.length);
+  text = text.split("More information:").reverse().join("\n");
+  console.log(`[SuperBIG returned:\n${text}]`);
+
+  return text;
+};
+
+const injectSuperBigContext = async ({ prompt, genParams }) => {
+  const maxPromptSize = genParams.max_context_length - genParams.max_length - 1;
+  const tokenCount = prompt.reduce((acum, v) => acum + v.tokenCount, 0);
+  let text;
+
+  const pos = prompt.findLastIndex(
+    (v) => v.metadata?.type === "superbig-injection-point"
+  );
+
+  if (pos !== -1 && tokenCount > maxPromptSize) {
+    try {
+      text = await getSuperBigContext(prompt);
+    } catch (error) {
+      console.error(error.stack);
+    }
+  }
+
+  if (text) {
+    const newMessages = text
+      .split("\n")
+      .filter((v) => !!v)
+      .map((line) => ({
+        role: "system",
+        metadata: { type: "superbig-context" },
+        prunable: true,
+        content: `${line}\n`,
+        tokenCount: tokenize([`${line}\n`])[0],
+      }));
+    prompt.splice(pos, 0, ...newMessages);
+  }
+};
+
 const getChatCompletions = async (req, res) => {
   await jsonParse(req, res);
 
@@ -318,6 +399,12 @@ const getChatCompletions = async (req, res) => {
     generationConfig: genParams,
   });
 
+  if (config.horde.enable) {
+    const models = filterModels(hordeState.models, config.horde.models);
+    const workers = filterWorkers(hordeState.workers, { models });
+    autoAdjustGenerationParameters(config, genParams, workers);
+  }
+
   cleanWhitespaceInMessages(prompt);
 
   const tokens = tokenize(prompt.map((v) => v.content));
@@ -325,10 +412,8 @@ const getChatCompletions = async (req, res) => {
     prompt[i].tokenCount = tokens[i];
   }
 
-  if (config.horde.enable) {
-    const models = filterModels(hordeState.models, config.horde.models);
-    const workers = filterWorkers(hordeState.workers, { models });
-    autoAdjustGenerationParameters(config, genParams, workers);
+  if (config.superbig) {
+    await injectSuperBigContext({ prompt, genParams });
   }
 
   prompt = limitMessagesInContext(prompt, genParams);
