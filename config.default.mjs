@@ -38,6 +38,8 @@ export default {
   // network interface and port that the proxy uses
   host: "127.0.0.1",
   port: 29172,
+  // enable this if you're making requests to the proxy from a web browser
+  cors: false,
 
   // used by the verbose prompt format to make the response more descriptive
   // works well enough to move the response in that general direction
@@ -46,9 +48,11 @@ export default {
   // if the value is "\"", the AI will always start with dialogue in quotes.
   characterBias: "",
   includeCharacterBiasInOutput: true,
-  // used by the singleline prompt format
+
   // if empty it will just complete the last AI reply, otherwise it sends this message
-  silentMessage: "[says nothing]",
+  silentMessage: "", // [says nothing]
+
+  seed: null,
 
   // Horde stuff
   horde: {

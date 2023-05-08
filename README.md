@@ -74,8 +74,8 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 
 - **config.default.mjs**: default settings
 - **config.mjs**: user settings, if exists
-- **index.mjs**: proxy code
-- **horde.mjs**: horde code
+- **src/index.mjs**: proxy code
+- **src/horde.mjs**: horde code
 - **presets/\*.json**: AI generation presets. The defaults come from Kobold.
 - **prompt-formats/\*.mjs**: functions to build the prompt
 - **tokenizer.model**: LLaMA tokenizer model from huggingface.
