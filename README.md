@@ -64,7 +64,7 @@ There's also a _replyAttributes_ variable that, by default, alters the prompt to
 
 If you want to always keep the example messages of the character in the prompt, you have to edit _keepExampleMessagesInPrompt_ in conf.mjs while also enabling the option in the Tavern UI.
 
-The last prompt is saved as prompt.txt. You can use it to check that everything is okay with the way the prompt is generated.
+The last prompt is saved as **prompt.txt**. You can use it to check that everything is okay with the way the prompt is generated.
 
 Streaming works for ooba and koboldcpp. Kobold doesn't support streaming or stopping strings.
 
@@ -87,27 +87,4 @@ Ooba needs to be started with --extensions api and the streaming API was added A
 
 ## Changelog
 
-### 2023-05-04
-
-- Added to abort the request when the stop streaming button is pressed.
-
-### 2023-05-03
-
-- Added to cancel the previous request, at least when using koboldcpp and the horde, and wait for the previous request to finish before starting the new one.
-- Fixed Horde anonymous requests.
-- Added startup scripts.
-- Reverted "add support to set the character names in the main prompt." That prompt is not sent when using impersonation. Changed it back to the first line of the Jailbreak.
-- Added an option to include the character bias in the final text generated. It's enabled by default.
-- Fixed how the singleline prompt format finds who sent the last message and added an option to customize the "[says nothing]" message.
-
-### 2023-05-02
-
-- Added Horde support, see config.default.mjs.
-- Added character bias (a string added at the very end of the prompt)
-- Added different configuration variable to set the max amount of tokens to generate while using impersonation.
-- Added support to set the character names in Main Prompt in the first line with this format "{{char}}|{{user}}", freeing the jailbreak. The following lines after the first one can be used normally.
-
-### 2023-04-29
-
-- Added a config.mjs file for the settings.
-- Added presets/ for generation presets and prompt-formats/ for the functions that generates the prompts.
+[changelog](./CHANGELOG.md)
