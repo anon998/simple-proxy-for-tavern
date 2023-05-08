@@ -8,8 +8,8 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
     .replaceAll("{{user}}", user)
     .replaceAll("{{char}}", assistant);
   let impersonationInstruction = `Write ${user}'s next reply in this fictional roleplay with ${assistant}.`;
-  let userName = (attributes = "") => ``;
-  let assistantName = (attributes = "") => ``;
+  let userName = () => ``;
+  let assistantName = () => ``;
   let replyAttributes = config.replyAttributes;
   let mainPromptAdded = false;
   let impersonationPromptFound = false;

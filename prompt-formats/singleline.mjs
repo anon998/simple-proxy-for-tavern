@@ -43,9 +43,8 @@ Write ${assistant}'s next reply in a fictional chat between ${assistant} and ${u
   let contextResponse = ``;
   let replyInstruction = ``;
   let impersonationInstruction = ``;
-  let userName = (attributes = "") => (groupChatFound ? "" : `${user}:`);
-  let assistantName = (attributes = "") =>
-    groupChatFound ? "" : `${assistant}:`;
+  let userName = () => (groupChatFound ? "" : `${user}:`);
+  let assistantName = () => (groupChatFound ? "" : `${assistant}:`);
   let replyAttributes = ``;
   let characterBias = config.characterBias
     .replaceAll("{{user}}", user)
