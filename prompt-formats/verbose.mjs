@@ -1,27 +1,30 @@
+import {
+  getLastChatMessage,
+  popLastAssistantMessage,
+  replaceTemplates,
+} from "../src/utils.mjs";
+
 export default ({ user, assistant, messages, config, generationConfig }) => {
-  let systemPrompt = `## ${assistant}
+  const systemPrompt = `## ${assistant}
 - You're "${assistant}" in this never-ending roleplay with "${user}".`;
-  let newConversation = `### New Roleplay:`;
-  let context = `### Input:\n`;
-  let contextResponse = `### Response:\n(OOC) Understood. I will take this info into account for the roleplay. (end OOC)`;
-  //     let replyInstruction = `(OOC) Write only ${assistant} next reply in this roleplay.
-  // - Don't take control of ${user}.
-  // - **Always** stay in character and be creative, writing with ${assistant}'s style and personality.
-  // - Write at least two paragraphs. (end OOC)`;
-  let replyInstruction = ``;
-  let impersonationInstruction = `Write ${user}'s next reply in this fictional roleplay with ${assistant}.`;
+  const newConversation = `### New Roleplay:`;
+  const newExample = newConversation;
+  const context = `### Input:\n`;
+  const contextResponse = `### Response:\n(OOC) Understood. I will take this info into account for the roleplay. (end OOC)`;
+  const replyAttributes = replaceTemplates(config.replyAttributes, config);
+  const characterBias = replaceTemplates(config.characterBias, config);
+  const impersonationPrompt = replaceTemplates(
+    config.impersonationPrompt,
+    config
+  );
+  const silentMessage = replaceTemplates(config.silentMessage, config);
+
+  let impersonationPromptFound = false;
+
   let userName = (attributes = "") =>
     `### Instruction${attributes}:\n#### ${user}:\n`;
   let assistantName = (attributes = "") =>
     `### Response${attributes}:\n#### ${assistant}:\n`;
-  let replyAttributes = config.replyAttributes
-    .replaceAll("{{user}}", user)
-    .replaceAll("{{char}}", assistant);
-  let characterBias = config.characterBias
-    .replaceAll("{{user}}", user)
-    .replaceAll("{{char}}", assistant);
-  let mainPromptAdded = false;
-  let impersonationPromptFound = false;
 
   let beforeSystem = "\n\n";
   let afterSystem = "\n";
@@ -34,137 +37,128 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
   if (systemPrompt) {
     prompt.push({
       role: "system",
-      type: "system-prompt",
+      metadata: { type: "system-prompt" },
       prunable: false,
       content: `${beforeSystem}${systemPrompt}${afterSystem}`,
     });
   }
 
-  let i = 0;
-  for (let { role, content, name } of messages) {
-    content = content.trim();
-    if (role === "system") {
-      if (content === "[Start a new chat]") {
-        if (newConversation) {
-          prompt.push({
-            role: "system",
-            type: "new-conversation",
-            prunable: false,
-            content: `${beforeSystem}${newConversation}${afterSystem}`,
-          });
-        }
-      } else if (!mainPromptAdded) {
-        mainPromptAdded = true;
+  for (const msg of messages) {
+    const { metadata } = msg;
+    let content = msg.content.trim();
+
+    if (metadata.type === "new-conversation") {
+      if (newConversation) {
         prompt.push({
-          role: "system",
-          type: "context",
+          ...msg,
           prunable: false,
-          content: `${beforeSystem}${context}${content}${afterSystem}`,
-        });
-        if (contextResponse) {
-          prompt.push({
-            role: "assistant",
-            type: "context-response",
-            prunable: false,
-            content: `${beforeAssistant}${contextResponse}${afterAssistant}`,
-          });
-        }
-      } else if (content === "IMPERSONATION_PROMPT") {
-        impersonationPromptFound = true;
-      } else if (name === "example_assistant") {
-        prompt.push({
-          role: "assistant",
-          type: "example-conversation",
-          prunable: !config.keepExampleMessagesInPrompt,
-          content: `${beforeAssistant}${assistantName()}${content}${afterAssistant}`,
-        });
-      } else if (name === "example_user") {
-        prompt.push({
-          role: "user",
-          type: "example-conversation",
-          prunable: !config.keepExampleMessagesInPrompt,
-          content: `${beforeUser}${userName()}${content}${afterUser}`,
-        });
-      } else {
-        prompt.push({
-          role: "system",
-          type: "other",
-          prunable: false,
-          content: `${beforeSystem}${content}${afterSystem}`,
+          content: `${beforeSystem}${newConversation}${afterSystem}`,
         });
       }
-    } else if (role === "assistant") {
-      if (i === messages.length - 1) {
-        if (replyInstruction) {
-          prompt.push({
-            role: "system",
-            type: "reply-instruction",
-            prunable: false,
-            content: `${beforeSystem}${replyInstruction}${afterSystem}`,
-          });
-        }
+    } else if (metadata.type === "new-example-dialogue") {
+      if (newExample) {
         prompt.push({
-          role: "assistant",
-          type: "reply",
+          ...msg,
           prunable: false,
-          content: `${beforeAssistant}${assistantName(
-            replyAttributes
-          )}${characterBias}${content}`,
-        });
-      } else {
-        prompt.push({
-          role: "assistant",
-          type: "reply",
-          prunable: true,
-          content: `${beforeAssistant}${assistantName()}${content}${afterAssistant}`,
+          content: `${beforeSystem}${newExample}${afterSystem}`,
         });
       }
-    } else if (role === "user") {
+    } else if (metadata.type === "context") {
       prompt.push({
-        role: "user",
-        type: "reply",
+        ...msg,
+        prunable: false,
+        content: `${beforeSystem}${context}${content}${afterSystem}`,
+      });
+      if (contextResponse) {
+        prompt.push({
+          role: "assistant",
+          metadata: { type: "context-response" },
+          prunable: false,
+          content: `${beforeAssistant}${contextResponse}${afterAssistant}`,
+        });
+      }
+    } else if (metadata.type === "example-assistant") {
+      prompt.push({
+        ...msg,
+        prunable: !(
+          config.keepExampleMessagesInPrompt ||
+          metadata.exampleAssistantMsgIndex === 0
+        ),
+        content: `${beforeAssistant}${assistantName()}${content}${afterAssistant}`,
+      });
+    } else if (metadata.type === "example-user") {
+      prompt.push({
+        ...msg,
+        prunable: !config.keepExampleMessagesInPrompt,
+        content: `${beforeUser}${userName()}${content}${afterUser}`,
+      });
+    } else if (metadata.type === "other" || metadata.type === "jailbreak") {
+      prompt.push({
+        ...msg,
+        prunable: false,
+        content: `${beforeSystem}${content}${afterSystem}`,
+      });
+    } else if (metadata.type === "impersonation-prompt") {
+      impersonationPromptFound = true;
+    } else if (metadata.type === "assistant-msg") {
+      prompt.push({
+        ...msg,
+        prunable: true,
+        content: `${beforeAssistant}${assistantName()}${content}${afterAssistant}`,
+      });
+    } else if (metadata.type === "user-msg") {
+      prompt.push({
+        ...msg,
         prunable: true,
         content: `${beforeUser}${userName()}${content}${afterUser}`,
       });
     }
-    i++;
   }
 
-  if (messages[messages.length - 1].role !== "assistant") {
-    if (impersonationPromptFound) {
-      if (impersonationInstruction) {
-        prompt.push({
-          role: "system",
-          type: "impersonation-instruction",
-          prunable: false,
-          content: `${beforeSystem}${impersonationInstruction}${afterSystem}`,
-        });
-      }
+  const last = getLastChatMessage(prompt);
+
+  if (impersonationPromptFound || last?.role === "user" || silentMessage) {
+    if (last?.role === "assistant" && silentMessage) {
       prompt.push({
         role: "user",
-        type: "reply-to-complete",
+        metadata: { type: "silent-message" },
         prunable: false,
-        content: `${beforeUser}${userName(replyAttributes)}`,
-      });
-    } else {
-      if (replyInstruction) {
-        prompt.push({
-          role: "system",
-          type: "reply-instruction",
-          prunable: false,
-          content: `${beforeSystem}${replyInstruction}${afterSystem}`,
-        });
-      }
-      prompt.push({
-        role: "assistant",
-        type: "reply-to-complete",
-        prunable: false,
-        content: `${beforeAssistant}${assistantName(
-          replyAttributes
-        )}${characterBias}`,
+        content: `${beforeUser}${userName()}${silentMessage}${afterUser}`,
       });
     }
+
+    if (impersonationPromptFound) {
+      prompt.push({
+        role: "system",
+        metadata: { type: "impersonation-prompt" },
+        prunable: false,
+        content: `${beforeSystem}${impersonationPrompt}${afterSystem}`,
+      });
+    }
+
+    prompt.push({
+      role: impersonationPromptFound ? "user" : "assistant",
+      metadata: { type: "reply-to-complete" },
+      prunable: false,
+      content: `${impersonationPromptFound ? beforeUser : beforeAssistant}${
+        impersonationPromptFound
+          ? userName(replyAttributes)
+          : assistantName(replyAttributes)
+      }${characterBias}`,
+    });
+  } else {
+    const msg = popLastAssistantMessage(prompt);
+    const end = msg.content.length - afterAssistant.length;
+    msg.content = msg.content.substring(0, end);
+    prompt.push(msg);
   }
+
+  prompt.splice(prompt.length - 5, 0, {
+    role: "system",
+    metadata: { type: "superbig-injection-point" },
+    prunable: true,
+    content: "",
+  });
 
   if (impersonationPromptFound) {
     generationConfig.max_new_tokens = config.impersonationMaxNewTokens;
