@@ -5,7 +5,8 @@
 - Reorganized the code structure.
 - Added option to disable sending the CORS headers.
 - Added an option to set the seed for ooba.
-- Added test [bluemoon](https://huggingface.co/reeducator/bluemoonrp-13b) format.
+- Added [bluemoon](https://huggingface.co/reeducator/bluemoonrp-13b) format.
+- Added [vicuna-cocktail](https://huggingface.co/reeducator/vicuna-13b-cocktail) format.
 
 ### 2023-05-04
 
