@@ -1,5 +1,12 @@
 # Change Log
 
+### 2023-05-08
+
+- Reorganized the code structure.
+- Added option to disable sending the CORS headers.
+- Added an option to set the seed for ooba.
+- Added test [bluemoon](https://huggingface.co/reeducator/bluemoonrp-13b) format.
+
 ### 2023-05-04
 
 - Added to abort the request when the stop streaming button is pressed.
