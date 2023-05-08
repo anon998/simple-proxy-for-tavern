@@ -7,6 +7,7 @@
 - Added an option to set the seed for ooba.
 - Added [bluemoon](https://huggingface.co/reeducator/bluemoonrp-13b) format.
 - Added [vicuna-cocktail](https://huggingface.co/reeducator/vicuna-13b-cocktail) format.
+- Added an alternative verbose format.
 
 ### 2023-05-04
 
