@@ -60,8 +60,58 @@ export const truncateGeneratedText = (stoppingStrings, text, config) => {
 };
 
 export const replaceTemplates = (text, config) =>
-  text
+  (text || "")
     .replaceAll("{{impersonationPrompt}}", config.impersonationPrompt)
     .replaceAll("{{jailbreak}}", config.jailbreak)
     .replaceAll("{{user}}", config.user)
     .replaceAll("{{char}}", config.assistant);
+
+export const addStoppingStrings = (config, strings) => {
+  for (const current of strings) {
+    const found = config.stoppingStrings.find((v) => v === current);
+    if (!found) {
+      config.stoppingStrings.push(current);
+    }
+  }
+};
+
+export const popLastChatMessages = (prompt, count) => {
+  const messages = [];
+  let chatMsgCount = 0;
+
+  for (let i = prompt.length - 1; i >= 0 && chatMsgCount < count; i--) {
+    const msg = prompt[i];
+
+    if (
+      msg.metadata?.type === "user-msg" ||
+      msg.metadata?.type === "assistant-msg"
+    ) {
+      messages.push(msg);
+      prompt.splice(i, 1);
+      chatMsgCount += 1;
+    } else if (msg.metadata?.type === "new-conversation") {
+      break;
+    } else {
+      messages.push(msg);
+      prompt.splice(i, 1);
+    }
+  }
+
+  return messages.reverse();
+};
+
+export const popLastAssistantMessage = (prompt) => {
+  const index = prompt.findLastIndex(
+    (v) => v.metadata?.type === "assistant-msg"
+  );
+  const msg = prompt[index];
+  prompt.splice(index, 1);
+  return msg;
+};
+
+export const getLastChatMessage = (prompt) =>
+  prompt.findLast(
+    (msg) =>
+      msg.metadata?.type === "user-msg" ||
+      msg.metadata?.type === "assistant-msg"
+  );
