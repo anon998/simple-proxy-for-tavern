@@ -3,7 +3,7 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
 - You're "${assistant}" in this never-ending roleplay with "${user}".`;
   let newConversation = `### New Roleplay:`;
   let context = `### Input:\n`;
-  let contextResponse = `### Response:\n(OOC) Understood. I will have this info into account for the roleplay. (end OOC)`;
+  let contextResponse = `### Response:\n(OOC) Understood. I will take this info into account for the roleplay. (end OOC)`;
   //     let replyInstruction = `(OOC) Write only ${assistant} next reply in this roleplay.
   // - Don't take control of ${user}.
   // - **Always** stay in character and be creative, writing with ${assistant}'s style and personality.
