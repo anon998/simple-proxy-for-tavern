@@ -161,12 +161,12 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
       });
     }
 
-    prompt.push({
-      role: "system",
-      metadata: { type: "reply-instruction" },
-      prunable: false,
-      content: `${beforeUser}OOC: Write at least two paragraphs for ${you}'s next reply, coherently continue the roleplay.${afterUser}`,
-    });
+    // prompt.push({
+    //   role: "system",
+    //   metadata: { type: "reply-instruction" },
+    //   prunable: false,
+    //   content: `${beforeUser}OOC: Write at least two paragraphs for ${you}'s next reply, coherently continue the roleplay.${afterUser}`,
+    // });
 
     prompt.push({
       role: impersonationPromptFound ? "user" : "assistant",
