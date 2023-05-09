@@ -21,17 +21,17 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
 
   let impersonationPromptFound = false;
 
-  let userName = (attributes = "") =>
+  const userName = (attributes = "") =>
     `### Instruction${attributes}:\n#### ${user}:\n`;
-  let assistantName = (attributes = "") =>
+  const assistantName = (attributes = "") =>
     `### Response${attributes}:\n#### ${assistant}:\n`;
 
-  let beforeSystem = "\n\n";
-  let afterSystem = "\n";
-  let beforeUser = "\n\n";
-  let afterUser = "\n";
-  let beforeAssistant = "\n\n";
-  let afterAssistant = "\n";
+  const beforeSystem = "\n\n";
+  const afterSystem = "\n";
+  const beforeUser = "\n\n";
+  const afterUser = "\n";
+  const beforeAssistant = "\n\n";
+  const afterAssistant = "\n";
 
   let prompt = [];
   if (systemPrompt) {

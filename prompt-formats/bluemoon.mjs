@@ -27,12 +27,12 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
   const userName = () => ``;
   const assistantName = () => ``;
 
-  let beforeSystem = "\n\n";
-  let afterSystem = "\n";
-  let beforeUser = "\n\nLEAD: ";
-  let afterUser = "\n";
-  let beforeAssistant = "\n\nASSOCIATE: ";
   let afterAssistant = "</s>";
+  const beforeSystem = "\n\n";
+  const afterSystem = "\n";
+  const beforeUser = "\n\nLEAD: ";
+  const afterUser = "\n";
+  const beforeAssistant = "\n\nASSOCIATE: ";
 
   let prompt = [];
   if (systemPrompt) {

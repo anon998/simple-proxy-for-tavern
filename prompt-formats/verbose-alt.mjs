@@ -33,12 +33,12 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
   const assistantName = (args = {}) =>
     getNameString({ ...args, name: assistant });
 
-  let beforeSystem = "\n\n";
-  let afterSystem = "\n";
-  let beforeUser = "\n\n";
-  let afterUser = "\n";
-  let beforeAssistant = "\n\n";
-  let afterAssistant = "\n";
+  const beforeSystem = "\n\n";
+  const afterSystem = "\n";
+  const beforeUser = "\n\n";
+  const afterUser = "\n";
+  const beforeAssistant = "\n\n";
+  const afterAssistant = "\n";
 
   let prompt = [];
   if (systemPrompt) {
