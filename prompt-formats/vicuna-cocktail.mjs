@@ -174,7 +174,7 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
       prunable: false,
       content: `${impersonationPromptFound ? beforeUser : beforeAssistant}${
         impersonationPromptFound ? userName() : assistantName()
-      }${characterBias}`,
+      }`.trimRight() + characterBias,
     });
   } else {
     const msg = popLastAssistantMessage(prompt);

@@ -153,9 +153,10 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
       role: impersonationPromptFound ? "user" : "assistant",
       metadata: { type: "reply-to-complete" },
       prunable: false,
-      content: `${impersonationPromptFound ? beforeUser : beforeAssistant}${
-        impersonationPromptFound ? userName() : assistantName()
-      }${characterBias}`,
+      content:
+        `${impersonationPromptFound ? beforeUser : beforeAssistant}${
+          impersonationPromptFound ? userName() : assistantName()
+        }`.trimRight() + characterBias,
     });
   } else {
     const msg = popLastAssistantMessage(prompt);
