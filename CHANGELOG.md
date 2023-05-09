@@ -9,6 +9,7 @@
 - Added [vicuna-cocktail](https://huggingface.co/reeducator/vicuna-13b-cocktail) format.
 - Added an alternative verbose format.
 - Added basic superbig support. There's a new config option and a python script at src/basic-superbig-api.py. It's probably easier to do "pip install superbig" in ooba's env and run the script inside it.
+- A custom impersonation prompt can be added on the second line after "IMPERSONATION_PROMPT".
 
 ### 2023-05-04
 
