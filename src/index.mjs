@@ -338,7 +338,6 @@ const getSuperBigContext = async (messages) => {
   });
 
   let { text } = await resp.json();
-  text = text.substring(data.last_messages.length);
   text = text.split("More information:").reverse().join("\n");
   console.log(`[SuperBIG returned:\n${text}]`);
 
