@@ -28,12 +28,12 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
   const userName = () => ``;
   const assistantName = () => ``;
 
-  let afterAssistant = "</s>";
   const beforeSystem = "\n\n";
   const afterSystem = "\n";
   const beforeUser = "\n\nUSER: ";
   const afterUser = "\n";
   const beforeAssistant = "\n\nASSOCIATE: ";
+  const afterAssistant = config.backendType === "koboldcpp" ? "\n" : "</s>\n";
 
   let prompt = [];
   if (systemPrompt) {
