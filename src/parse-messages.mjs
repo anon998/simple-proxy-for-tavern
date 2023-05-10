@@ -104,7 +104,7 @@ const fixExampleMessages = ({ user, assistant, messages }) => {
 const parseImpersonationPrompt = (content) =>
   content.replace("IMPERSONATION_PROMPT", "").trimStart();
 
-const addMetadataToMessages = (messages) => {
+const addMetadataToMessages = (messages, config) => {
   let mainPromptFound = false;
   let msgCount = 0;
 
@@ -120,7 +120,10 @@ const addMetadataToMessages = (messages) => {
 
   let otherSystemMsgCount = 0;
 
-  const updatedConfig = { jailbreak: null, impersonationPrompt: null };
+  const updatedConfig = {
+    jailbreak: config.jailbreak,
+    impersonationPrompt: config.impersonationPrompt,
+  };
 
   // TODO: support group chats
   // TODO: split personality
@@ -139,7 +142,10 @@ const addMetadataToMessages = (messages) => {
         metadata.type = "context";
       } else if (content.startsWith("IMPERSONATION_PROMPT")) {
         metadata.type = "impersonation-prompt";
-        updatedConfig.impersonationPrompt = parseImpersonationPrompt(content);
+        const tmp = parseImpersonationPrompt(content);
+        if (tmp) {
+          updatedConfig.impersonationPrompt = tmp;
+        }
       } else if (name === "example_assistant") {
         metadata.type = "example-assistant";
         metadata.chatIndex = newChatCount - 1;
@@ -157,7 +163,9 @@ const addMetadataToMessages = (messages) => {
       } else {
         if (msgCount === messages.length - 1) {
           metadata.type = "jailbreak";
-          updatedConfig.jailbreak = content;
+          if (content) {
+            updatedConfig.jailbreak = content;
+          }
         } else {
           metadata.type = "other";
           metadata.otherIndex = otherSystemMsgCount;
@@ -202,7 +210,7 @@ const addMetadataToMessages = (messages) => {
   return updatedConfig;
 };
 
-export const parseMessages = ({ messages }) => {
+export const parseMessages = ({ messages, config }) => {
   let updatedConfig = {};
 
   // TODO: translate from agnai to tavern's format
@@ -218,7 +226,7 @@ export const parseMessages = ({ messages }) => {
     messages,
   });
 
-  const tmpConfig = addMetadataToMessages(updatedMessages);
+  const tmpConfig = addMetadataToMessages(updatedMessages, config);
 
   updatedConfig = { ...updatedConfig, ...tmpConfig }; // TODO: merge
 

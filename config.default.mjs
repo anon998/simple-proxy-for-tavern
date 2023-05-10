@@ -48,15 +48,18 @@ export default {
   // if the value is "\"", the AI will always start with dialogue in quotes.
   characterBias: "",
   includeCharacterBiasInOutput: true,
-
   // if empty it will just complete the last AI reply, otherwise it sends this message
   silentMessage: "", // [says nothing]
+  // The prompt used for the impersonation function.
+  impersonationPrompt:
+    "Write {{user}}'s next reply in this fictional roleplay with {{char}}.",
 
+  // only works for ooba for now
   seed: null,
 
   // https://github.com/kaiokendev/superbig
   superbig: false,
-  superbigApi: 'http://127.0.0.1:29180',
+  superbigApi: "http://127.0.0.1:29180",
 
   // Horde stuff
   horde: {
