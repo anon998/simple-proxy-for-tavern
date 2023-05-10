@@ -9,7 +9,7 @@ const getNameString = ({ name, isExample, attr } = {}) =>
   `#### ${name}${isExample ? `'s example dialogue` : ""}${attr || ""}:\n`;
 
 export default ({ user, assistant, messages, config, generationConfig }) => {
-  const systemPrompt = `You're taking the rol of "${assistant}" in this never-ending roleplay with "${user}".`;
+  const systemPrompt = `You're taking on the role of "${assistant}" in this never-ending roleplay with "${user}".`;
   const newConversation = "";
   const newExample = newConversation;
   const context = "Here's the context for this roleplay:\n";
