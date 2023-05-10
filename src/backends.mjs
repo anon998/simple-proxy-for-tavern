@@ -319,14 +319,15 @@ const koboldGenerateStream = (req, res, genParams, config) =>
           }
         }
 
+        let textToSend = text;
         if (!generatedSoFar && text && config.includeCharacterBiasInOutput) {
-          text = `${config.characterBias}${
+          textToSend = `${config.characterBias}${
             config.backendType === "koboldcpp" ? text : text.trimStart()
           }`;
         }
 
         const json = JSON.stringify({
-          choices: [{ delta: { content: text } }],
+          choices: [{ delta: { content: textToSend } }],
         });
         res.write(`data: ${json}\n\n`, "utf-8");
 
