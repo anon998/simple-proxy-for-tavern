@@ -41,7 +41,7 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
   const replyInstruction = ({
     you,
     other,
-  }) => `${beforeSystem}Write a continuation for this never-ending roleplay. Develop the plot slowly and always stay in character. Avoid taking control of ${other}'s actions and OOC messages in ${you}'s replies.
+  }) => `${beforeSystem}Write a continuation for this never-ending roleplay. Develop the plot slowly and always stay in character. Avoid taking control of ${other}'s actions or including OOC messages in ${you}'s replies.
 ### Response:
 (OOC) Understood. Following those instructions and ${you}'s description above, the most descriptive and creative continuation for this roleplay is this: (end OOC)${afterSystem}`;
 
