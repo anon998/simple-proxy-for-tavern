@@ -1,5 +1,4 @@
 import WebSocket from "ws";
-import streams from "stream";
 
 import {
   cancelTextGeneration as hordeCancelTextGeneration,
