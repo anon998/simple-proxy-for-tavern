@@ -317,6 +317,9 @@ const koboldGenerateStream = (req, res, genParams, config) =>
             text = currentText.substring(generatedSoFar.length);
             lengthToStream = 0;
           }
+          if (text === "") {
+            lengthToStream = 0;
+          }
         }
 
         let textToSend = text;
@@ -336,7 +339,7 @@ const koboldGenerateStream = (req, res, genParams, config) =>
         generatedSoFar += text;
       }
     } catch (error) {
-      console.error(`Error during stream: ${event.message}`);
+      console.error(`Error during stream: ${error.message}`);
     } finally {
       res.end("data: [DONE]\n\n", "utf-8");
       resolve();
