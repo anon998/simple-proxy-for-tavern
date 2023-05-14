@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import streams from "stream";
 
 import {
   cancelTextGeneration as hordeCancelTextGeneration,
@@ -40,6 +41,26 @@ export const oobaGenerate = async (req, res, genParams, config) => {
     await oobaGenerateStream(req, res, genParams, config);
   } else {
     await koboldGenerateBlocking(req, res, genParams, config);
+  }
+};
+
+export const llamaCppPythonGenerate = async (req, res, genParams, config) => {
+  const params = {
+    prompt: genParams.prompt,
+    max_tokens: genParams.max_length,
+    temperature: genParams.temperature,
+    top_p: genParams.top_p,
+    stop: genParams.stopping_strings,
+    stream: config.stream,
+    frequency_penalty: genParams.tfs,
+    top_k: genParams.top_k,
+    repeat_penalty: genParams.rep_pen,
+  };
+
+  if (config.stream) {
+    await llamaCppPythonGenerateStream(req, res, params, config);
+  } else {
+    await llamaCppPythonGenerateBlocking(req, res, params, config);
   }
 };
 
@@ -345,3 +366,134 @@ const koboldGenerateStream = (req, res, genParams, config) =>
       resolve();
     }
   });
+
+const llamaCppPythonGenerateBlocking = async (req, res, genParams, config) => {
+  abort.abortPreviousRequest = () => {
+    abort.abortPreviousRequest = null;
+  };
+
+  const resp = await fetch(`${config.llamaCppPythonUrl}/v1/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(genParams),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text);
+  }
+
+  let {
+    choices: [{ text }],
+  } = await resp.json();
+
+  console.log("[ GENERATED ]:", text);
+
+  const stoppingStrings = formatStoppingStrings({
+    user: config.user,
+    assistant: config.assistant,
+    stoppingStrings: config.stoppingStrings,
+  });
+  text = truncateGeneratedText(stoppingStrings, text, config);
+
+  if (text && config.includeCharacterBiasInOutput) {
+    text = `${config.characterBias}${text}`;
+  }
+
+  const buffer = toBuffer({
+    choices: [{ message: { content: text } }],
+  });
+
+  res.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": buffer.length,
+    ...config.corsHeaders,
+  });
+
+  res.end(buffer, "utf-8");
+};
+
+const llamaCppPythonGenerateStream = async (req, res, genParams, config) => {
+  let body;
+
+  abort.abortPreviousRequest = () => {
+    abort.abortPreviousRequest = null;
+    body?.destroy();
+  };
+
+  const resp = await fetch(`${config.llamaCppPythonUrl}/v1/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(genParams),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text);
+  }
+
+  body = resp.body;
+  if (body.locked) {
+    throw new Error("The stream is locked. Please try again");
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    Connection: "keep-alive",
+    "Cache-Control": "no-cache",
+    ...config.corsHeaders,
+  });
+  res.flushHeaders();
+  workAroundTavernDelay(req, res);
+
+  await new Promise((resolve) => {
+    let outputSent = false;
+
+    body.on("data", (chunk) => {
+      const chunkStr = chunk.toString().replaceAll("\r\n", "\n");
+      const list = chunkStr.split("\n\n");
+      for (const current of list) {
+        if (!current.startsWith("data: ")) {
+          continue;
+        }
+
+        let text;
+        try {
+          const data = JSON.parse(chunkStr.substring("data: ".length));
+          text = data.choices[0].text;
+          process.stdout.write(text);
+        } catch (error) {
+          console.log(chunkStr);
+          console.error(error.stack);
+          continue;
+        }
+
+        if (!outputSent && text && config.includeCharacterBiasInOutput) {
+          text = `${config.characterBias}${text}`;
+          outputSent = true;
+        }
+
+        const json = JSON.stringify({
+          choices: [{ delta: { content: text } }],
+        });
+        res.write(`data: ${json}\n\n`, "utf-8");
+      }
+    });
+
+    body.on("error", (error) => {
+      console.error(error.stack);
+      res.end("data: [DONE]\n\n", "utf-8");
+      resolve();
+    });
+
+    body.on("close", () => {
+      console.log("", { event: "stream end" });
+      res.end("data: [DONE]\n\n", "utf-8");
+      resolve();
+    });
+  });
+};

@@ -4,6 +4,7 @@ import fs from "fs";
 
 import {
   koboldGenerate,
+  llamaCppPythonGenerate,
   oobaGenerate,
   hordeGenerate,
   abort,
@@ -154,6 +155,15 @@ const getBackendType = async () => {
     errors.push(error);
   }
 
+  try {
+    resp = await fetch(`${config.llamaCppPythonUrl}/v1/models`);
+    if (resp.status === 200 && resp.headers.get("server") === "uvicorn") {
+      return "llama-cpp-python";
+    }
+  } catch (error) {
+    errors.push(error);
+  }
+
   let message = `Couldn't connect with a Kobold/KoboldCPP/Ooba backend.\n`;
   message += errors.map((v) => v.message).join("\n");
   throw new Error(message);
@@ -194,6 +204,12 @@ const getModels = async (req, res) => {
 
   if (config.horde.enable) {
     models.push("Horde");
+  } else if (config.backendType === "llama-cpp-python") {
+    const resp = await fetch(`${config.llamaCppPythonUrl}/v1/models`);
+    const {
+      data: [{ id: modelName }],
+    } = await resp.json();
+    models.push(modelName);
   } else {
     const resp = await fetch(`${config.koboldApiUrl}/api/v1/model`);
     const { result: modelName } = await resp.json();
@@ -459,6 +475,8 @@ const getChatCompletions = async (req, res) => {
     await hordeGenerate(req, res, genParams, options);
   } else if (config.backendType === "ooba") {
     await oobaGenerate(req, res, genParams, options);
+  } else if (config.backendType === "llama-cpp-python") {
+    await llamaCppPythonGenerate(req, res, genParams, options);
   } else {
     await koboldGenerate(req, res, genParams, options);
   }
