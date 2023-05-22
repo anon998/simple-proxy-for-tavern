@@ -275,9 +275,9 @@ const limitMessagesInContext = (prompt, genConfig) => {
       const tmp = ["new-example-dialogue", "new-conversation"];
       if (
         (tmp.indexOf(currentMessage.metadata?.type) !== -1 &&
-          tmp.indexOf(prevMessage.metadata?.type) !== -1) ||
+          tmp.indexOf(prevMessage?.metadata?.type) !== -1) ||
         (currentMessage.type === "new-conversation" &&
-          prevMessage.type === "new-conversation")
+          prevMessage?.type === "new-conversation")
       ) {
         // TODO: it doesn't try to fit more messages after changing this
         // TODO: maybe do another loop and add an index to sort the messages
