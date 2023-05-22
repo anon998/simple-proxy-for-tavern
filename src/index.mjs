@@ -4,6 +4,7 @@ import fs from "fs";
 
 import {
   koboldGenerate,
+  llamaCppGenerate,
   llamaCppPythonGenerate,
   oobaGenerate,
   hordeGenerate,
@@ -164,6 +165,16 @@ const getBackendType = async () => {
     errors.push(error);
   }
 
+  try {
+    resp = await fetch(`${config.llamaCppUrl}/`);
+    const text = await resp.text();
+    if (text.includes("llama.cpp")) {
+      return "llama.cpp";
+    }
+  } catch (error) {
+    errors.push(error);
+  }
+
   let message = `Couldn't connect with a Kobold/KoboldCPP/Ooba backend.\n`;
   message += errors.map((v) => v.message).join("\n");
   throw new Error(message);
@@ -210,6 +221,9 @@ const getModels = async (req, res) => {
       data: [{ id: modelName }],
     } = await resp.json();
     models.push(modelName);
+  } else if (config.backendType === "llama.cpp") {
+    await fetch(`${config.llamaCppUrl}/`);
+    models.push("llama.cpp");
   } else {
     const resp = await fetch(`${config.koboldApiUrl}/api/v1/model`);
     const { result: modelName } = await resp.json();
@@ -435,7 +449,8 @@ const getChatCompletions = async (req, res) => {
   const promptText = cleanWhitespaceInFinalPrompt(
     prompt.map((v) => v.content).join("")
   );
-  console.log(`final prompt tokens = ${tokenize([promptText])}`);
+  const [promptTokenCount] = tokenize([promptText]);
+  console.log(`final prompt tokens = ${promptTokenCount}`);
 
   fs.writeFileSync("./prompt.txt", promptText);
 
@@ -469,6 +484,7 @@ const getChatCompletions = async (req, res) => {
     assistant: config.assistant,
     stream: args.stream,
     hordeState,
+    promptTokenCount,
   };
 
   if (config.horde.enable) {
@@ -477,6 +493,8 @@ const getChatCompletions = async (req, res) => {
     await oobaGenerate(req, res, genParams, options);
   } else if (config.backendType === "llama-cpp-python") {
     await llamaCppPythonGenerate(req, res, genParams, options);
+  } else if (config.backendType === "llama.cpp") {
+    await llamaCppGenerate(req, res, genParams, options);
   } else {
     await koboldGenerate(req, res, genParams, options);
   }

@@ -32,9 +32,17 @@ export default {
   koboldApiUrl: "http://127.0.0.1:5000",
   oobaStreamUrl: "ws://127.0.0.1:5005/api/v1/stream",
   llamaCppPythonUrl: "http://127.0.0.1:10000",
+  llamaCppUrl: "http://127.0.0.1:8080",
+
+  // https://github.com/ggerganov/llama.cpp/tree/master/examples/server#api-endpoints
+  llamaCppSettings: {
+    n_keep: -1,
+    // batch_size: 128,
+    // threads: 6,
+  },
 
   // this is detected automatically but it can be forced to a value
-  backendType: null, // "kobold", "koboldcpp", "ooba", "llama-cpp-python"
+  backendType: null, // "kobold", "koboldcpp", "ooba", "llama-cpp-python", "llama.cpp"
 
   // network interface and port that the proxy uses
   host: "127.0.0.1",

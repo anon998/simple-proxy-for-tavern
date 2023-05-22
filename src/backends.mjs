@@ -63,6 +63,30 @@ export const llamaCppPythonGenerate = async (req, res, genParams, config) => {
   }
 };
 
+export const llamaCppGenerate = async (req, res, genParams, config) => {
+  const params = {
+    temperature: genParams.temperature,
+    top_k: genParams.top_k,
+    top_p: genParams.top_p,
+    n_predict: Math.min(
+      config.promptTokenCount + genParams.max_length,
+      config.maxContextLength
+    ),
+    interactive: true,
+    prompt: genParams.prompt,
+    stop: genParams.stopping_strings,
+    as_loop: config.stream,
+    ...config.llamaCppSettings,
+  };
+  console.log({ llamaCppParams: { ...params, prompt: "[...]" } });
+
+  if (config.stream) {
+    await llamaCppGenerateStream(req, res, params, config);
+  } else {
+    await llamaCppGenerateBlocking(req, res, params, config);
+  }
+};
+
 export const hordeGenerate = async (req, res, genParams, config) => {
   let error;
   let text = "";
@@ -495,4 +519,124 @@ const llamaCppPythonGenerateStream = async (req, res, genParams, config) => {
       resolve();
     });
   });
+};
+
+const llamaCppGenerateBlocking = async (req, res, genParams, config) => {
+  abort.abortPreviousRequest = () => {
+    abort.abortPreviousRequest = null;
+  };
+
+  const resp = await fetch(`${config.llamaCppUrl}/completion`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(genParams),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text);
+  }
+
+  const json = await resp.json();
+  let { content: text } = json;
+
+  console.log("[ GENERATED ]:", text);
+
+  const stoppingStrings = formatStoppingStrings({
+    user: config.user,
+    assistant: config.assistant,
+    stoppingStrings: config.stoppingStrings,
+  });
+  text = truncateGeneratedText(stoppingStrings, text, config);
+
+  if (text && config.includeCharacterBiasInOutput) {
+    text = `${config.characterBias}${text}`;
+  }
+
+  const buffer = toBuffer({
+    choices: [{ message: { content: text } }],
+  });
+
+  res.writeHead(200, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": buffer.length,
+    ...config.corsHeaders,
+  });
+
+  res.end(buffer, "utf-8");
+};
+
+const llamaCppGenerateStream = async (req, res, genParams, config) => {
+  const nextTokenParams = new URLSearchParams();
+
+  abort.abortPreviousRequest = () => {
+    abort.abortPreviousRequest = null;
+    nextTokenParams.set("stop", "true");
+  };
+
+  const resp = await fetch(`${config.llamaCppUrl}/completion`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(genParams),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(text);
+  }
+
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    Connection: "keep-alive",
+    "Cache-Control": "no-cache",
+    ...config.corsHeaders,
+  });
+  res.flushHeaders();
+  workAroundTavernDelay(req, res);
+
+  try {
+    let outputSent = false;
+
+    for (;;) {
+      const nextResponse = await fetch(
+        `${config.llamaCppUrl}/next-token?${nextTokenParams}`,
+        {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (!nextResponse.ok) {
+        const errorText = await nextResponse.text();
+        throw new Error(errorText);
+      }
+
+      const responseJson = await nextResponse.json();
+      let { content: text, stop } = responseJson;
+      process.stdout.write(text);
+
+      if (!outputSent && text && config.includeCharacterBiasInOutput) {
+        text = `${config.characterBias}${text}`;
+        outputSent = true;
+      }
+
+      const json = JSON.stringify({
+        choices: [{ delta: { content: text } }],
+      });
+      res.write(`data: ${json}\n\n`, "utf-8");
+
+      if (stop) {
+        break;
+      }
+    }
+  } catch (error) {
+    console.error(error.stack);
+  } finally {
+    console.log("", { event: "stream end" });
+    res.end("data: [DONE]\n\n", "utf-8");
+  }
 };
