@@ -1,5 +1,19 @@
 # Change Log
 
+### 2023-05-21
+
+- Added initial support for [llama.cpp API server](https://github.com/ggerganov/llama.cpp/blob/master/examples/server/README.md). The API isn't very mature yet. There's a _llamaCppSettings_ field in the config for additional parameters.
+- Added the option to always keep the first example message for the AI's character.
+
+### 2023-05-14
+
+- Added support for [llama-cpp-python](https://github.com/abetlen/llama-cpp-python).
+
+### 2023-05-10
+
+- Added a default impersonation prompt in the config.
+- Fixed character bias when using pseudo-streaming.
+
 ### 2023-05-08
 
 - Reorganized the code structure.
