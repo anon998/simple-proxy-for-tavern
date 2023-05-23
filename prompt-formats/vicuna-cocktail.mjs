@@ -91,12 +91,12 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
         });
       }
     } else if (metadata.type === "example-assistant") {
+      const keepFirst =
+        config.alwaysKeepFirstAssistantExample &&
+        metadata.exampleAssistantMsgIndex === 0;
       prompt.push({
         ...msg,
-        prunable: !(
-          config.keepExampleMessagesInPrompt ||
-          metadata.exampleAssistantMsgIndex === 0
-        ),
+        prunable: !(config.keepExampleMessagesInPrompt || keepFirst),
         content: `${beforeAssistant}${assistantName()}${content}${afterAssistant}`,
       });
     } else if (metadata.type === "example-user") {

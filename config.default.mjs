@@ -23,6 +23,7 @@ export default {
   // if you want to pin the example messages in the prompt
   // change it in the Tavern UI too
   keepExampleMessagesInPrompt: false,
+  alwaysKeepFirstAssistantExample: true,
 
   // sentences that are cut in the middle are removed completely
   dropUnfinishedSentences: true,
