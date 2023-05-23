@@ -65,17 +65,28 @@ export const llamaCppPythonGenerate = async (req, res, genParams, config) => {
 
 export const llamaCppGenerate = async (req, res, genParams, config) => {
   const params = {
-    temperature: genParams.temperature,
-    top_k: genParams.top_k,
-    top_p: genParams.top_p,
+    prompt: genParams.prompt,
     n_predict: Math.min(
-      config.promptTokenCount + genParams.max_length,
+      config.promptTokenCount + 1 + genParams.max_length,
       config.maxContextLength
     ),
-    interactive: true,
-    prompt: genParams.prompt,
     stop: genParams.stopping_strings,
     as_loop: config.stream,
+    interactive: true,
+    reload_ctx: true,
+    temperature: genParams.temperature,
+    top_p: genParams.top_p,
+    top_k: genParams.top_k,
+    typical_p: genParams.typical,
+    tfs_z: genParams.tfs,
+    repeat_penalty: genParams.rep_pen,
+    repeat_last_n: genParams.rep_pen_range,
+    // these doesn't have an equivalence in kobold:
+    presence_penalty: genParams.presence_penalty,
+    frequency_penalty: genParams.frequency_penalty,
+    mirostat: genParams.mirostat,
+    mirostat_tau: genParams.mirostat_tau,
+    mirostat_eta: genParams.mirostat_eta,
     ...config.llamaCppSettings,
   };
   console.log({ llamaCppParams: { ...params, prompt: "[...]" } });
