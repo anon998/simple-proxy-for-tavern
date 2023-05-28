@@ -1,5 +1,10 @@
 # Change Log
 
+### 2023-05-28
+
+- Added streaming and stopping strings for Kobold. Made the seed setting work on Kobold too.
+- Added an option to stream by character, it's enabled by default.
+
 ### 2023-05-21
 
 - Added initial support for [llama.cpp API server](https://github.com/ggerganov/llama.cpp/blob/master/examples/server/README.md). The API isn't very mature yet. There's a _llamaCppSettings_ field in the config for additional parameters.
