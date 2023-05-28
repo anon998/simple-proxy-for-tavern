@@ -117,13 +117,21 @@ const tokenize = (input) => {
 };
 
 const getBackendType = async () => {
+  const result = {
+    backendType: null,
+    backendVersion: null,
+  };
+
   let resp;
   let errors = [];
 
+  // horde
   if (config.horde.enable) {
-    return "kobold";
+    result.backendType = "kobold";
+    return result;
   }
 
+  // koboldcpp
   let koboldCppUrl = config.koboldApiUrl;
   for (let i = 0; i < 2; i++) {
     try {
@@ -135,7 +143,9 @@ const getBackendType = async () => {
             config.koboldApiUrl = koboldCppUrl;
             console.log(`Changed Kobold URL to ${config.koboldApiUrl}`);
           }
-          return "koboldcpp";
+
+          result.backendType = "koboldcpp";
+          return result;
         }
       }
     } catch (error) {
@@ -145,31 +155,41 @@ const getBackendType = async () => {
     koboldCppUrl = config.koboldApiUrl.replace(/(.*):\d+$/g, "$1:5001");
   }
 
+  // kobold/ooba
   try {
     resp = await fetch(`${config.koboldApiUrl}/api/v1/info/version`);
     if (resp.status === 200) {
-      return "kobold";
+      const { result: version } = await resp.json();
+
+      result.backendType = "kobold";
+      result.backendVersion = version;
+      return result;
     } else if (resp.status == 404) {
-      return "ooba";
+      result.backendType = "ooba";
+      return result;
     }
   } catch (error) {
     errors.push(error);
   }
 
+  // llama-cpp-python
   try {
     resp = await fetch(`${config.llamaCppPythonUrl}/v1/models`);
     if (resp.status === 200 && resp.headers.get("server") === "uvicorn") {
-      return "llama-cpp-python";
+      result.backendType = "llama-cpp-python";
+      return result;
     }
   } catch (error) {
     errors.push(error);
   }
 
+  // llama-cpp
   try {
     resp = await fetch(`${config.llamaCppUrl}/`);
     const text = await resp.text();
     if (text.includes("llama.cpp")) {
-      return "llama.cpp";
+      result.backendType = "llama.cpp";
+      return result;
     }
   } catch (error) {
     errors.push(error);
@@ -182,31 +202,10 @@ const getBackendType = async () => {
 
 const checkWhichBackend = async () => {
   if (config.backendType === null) {
-    config.backendType = await getBackendType();
-    console.log({ backendType: config.backendType });
-  }
-
-  if (config.backendType === "kobold") {
-    if ("stopping_strings" in generationConfig) {
-      console.log(
-        `Removing 'stopping_strings' since Kobold doesn't support it.`
-      );
-      delete generationConfig["stopping_strings"];
-    }
-    // TODO: set seed
-  } else if (config.backendType === "koboldcpp") {
-    if ("stopping_strings" in generationConfig) {
-      console.log(
-        `Swapping 'stopping_strings' for 'stop_sequence' for KoboldCpp.`
-      );
-      generationConfig["stop_sequence"] = generationConfig["stopping_strings"];
-      delete generationConfig["stopping_strings"];
-    }
-    // TODO: set seed
-  } else if (config.backendType === "ooba") {
-    if (config.seed !== null) {
-      generationConfig["seed"] = config.seed;
-    }
+    const { backendType, backendVersion } = await getBackendType();
+    config.backendType = backendType;
+    config.backendVersion = backendVersion;
+    console.log({ backendType, backendVersion });
   }
 };
 
@@ -456,24 +455,15 @@ const getChatCompletions = async (req, res) => {
 
   genParams.prompt = promptText;
 
-  if ("stopping_strings" in genParams) {
-    genParams["stopping_strings"] = formatStoppingStrings({
-      user: config.user,
-      assistant: config.assistant,
-      stoppingStrings: config.stoppingStrings,
-    });
-    console.log({ stopping_strings: genParams["stopping_strings"] });
-  }
-  if ("stop_sequence" in genParams) {
-    genParams["stop_sequence"] = formatStoppingStrings({
-      user: config.user,
-      assistant: config.assistant,
-      stoppingStrings: config.stoppingStrings,
-    });
-    console.log({ stop_sequence: genParams["stop_sequence"] });
-  }
+  const formattedStoppingStrings = formatStoppingStrings({
+    user: config.user,
+    assistant: config.assistant,
+    stoppingStrings: config.stoppingStrings,
+  });
+  genParams["stopping_strings"] = formattedStoppingStrings;
 
   console.log({
+    stopping_strings: genParams["stopping_strings"],
     max_length: genParams.max_length,
     max_context_length: genParams.max_context_length,
   });
@@ -484,7 +474,7 @@ const getChatCompletions = async (req, res) => {
     assistant: config.assistant,
     stream: args.stream,
     hordeState,
-    promptTokenCount,
+    formattedStoppingStrings,
   };
 
   if (config.horde.enable) {

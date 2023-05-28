@@ -42,6 +42,9 @@ export default {
     // threads: 6,
   },
 
+  // if it should stream by character or not
+  streamByCharacter: true,
+
   // this is detected automatically but it can be forced to a value
   backendType: null, // "kobold", "koboldcpp", "ooba", "llama-cpp-python", "llama.cpp"
 
@@ -64,7 +67,7 @@ export default {
   impersonationPrompt:
     "Write {{user}}'s next reply in this fictional roleplay with {{char}}.",
 
-  // only works for ooba for now
+  // set the rng seed
   seed: null,
 
   // https://github.com/kaiokendev/superbig

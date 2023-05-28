@@ -5,41 +5,69 @@ import {
   generateText as hordeGenerateText,
 } from "./horde.mjs";
 
-import {
-  findStoppingStringPosition,
-  formatStoppingStrings,
-  toBuffer,
-  truncateGeneratedText,
-} from "./utils.mjs";
+import { StreamTokens } from "./stream.mjs";
+import { koboldGenerateStreamUI2 } from "./kobold-stream.mjs";
+
+import { compareVersion, toBuffer, truncateGeneratedText } from "./utils.mjs";
 
 export const abort = {
   abortPreviousRequest: null,
   waitingForPreviousRequest: null,
 };
 
-const workAroundTavernDelay = (req, res) => {
-  // Tavern takes a while to actually start displaying the characters.
-  const tmp = JSON.stringify({
-    choices: [{ delta: { content: "" } }],
-  });
-  for (let i = 0; i < 20; i++) {
-    res.write(`data: ${tmp}\n\n`, "utf-8");
+const koboldUpdateGenerationParameters = (genParams, config) => {
+  const params = { ...genParams };
+
+  if (
+    config.backendType === "koboldcpp" ||
+    (config.backendType === "kobold" &&
+      !config.horde.enable &&
+      (config.stream ||
+        compareVersion(config.backendVersion ?? "0.0.0", "1.2.2") >= 0))
+  ) {
+    if ("stopping_strings" in params) {
+      console.log(
+        `Swapping 'stopping_strings' for 'stop_sequence' for Kobold.`
+      );
+      params["stop_sequence"] = params["stopping_strings"];
+      delete params["stopping_strings"];
+    }
+  } else {
+    console.log(
+      `Removing 'stopping_strings' since this version of Kobold doesn't support it.`
+    );
+    delete params["stopping_strings"];
   }
+
+  if (config.seed) {
+    params.sampler_seed = config.seed;
+  }
+
+  return params;
 };
 
 export const koboldGenerate = async (req, res, genParams, config) => {
-  if (config.stream) {
-    await koboldGenerateStream(req, res, genParams, config);
+  const params = koboldUpdateGenerationParameters(genParams, config);
+
+  if (config.stream && config.backendType === "koboldcpp") {
+    await koboldGeneratePseudoStream(req, res, params, config);
+  } else if (config.stream) {
+    await koboldGenerateStream(req, res, params, config);
   } else {
-    await koboldGenerateBlocking(req, res, genParams, config);
+    await koboldGenerateBlocking(req, res, params, config);
   }
 };
 
 export const oobaGenerate = async (req, res, genParams, config) => {
+  const params = { ...genParams };
+  if (config.seed !== null) {
+    params.seed = config.seed;
+  }
+
   if (config.stream) {
-    await oobaGenerateStream(req, res, genParams, config);
+    await oobaGenerateStream(req, res, params, config);
   } else {
-    await koboldGenerateBlocking(req, res, genParams, config);
+    await koboldGenerateBlocking(req, res, params, config);
   }
 };
 
@@ -66,10 +94,7 @@ export const llamaCppPythonGenerate = async (req, res, genParams, config) => {
 export const llamaCppGenerate = async (req, res, genParams, config) => {
   const params = {
     prompt: genParams.prompt,
-    n_predict: Math.min(
-      config.promptTokenCount + 1 + genParams.max_length,
-      config.maxContextLength
-    ),
+    n_predict: genParams.max_length,
     stop: genParams.stopping_strings,
     as_loop: config.stream,
     interactive: true,
@@ -99,8 +124,11 @@ export const llamaCppGenerate = async (req, res, genParams, config) => {
 };
 
 export const hordeGenerate = async (req, res, genParams, config) => {
+  const params = koboldUpdateGenerationParameters(genParams, config);
+
   let error;
   let text = "";
+  let stream;
 
   abort.abortPreviousRequest = () => {
     abort.abortPreviousRequest = null;
@@ -118,21 +146,15 @@ export const hordeGenerate = async (req, res, genParams, config) => {
   };
 
   if (config.stream) {
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      Connection: "keep-alive",
-      "Cache-Control": "no-cache",
-      ...config.corsHeaders,
-    });
-    res.flushHeaders();
-    workAroundTavernDelay(req, res);
+    stream = new StreamTokens();
+    stream.sendSSEHeaders(req, res, config);
   }
 
   try {
     text = await hordeGenerateText({
       hordeState: config.hordeState,
       config,
-      genParams,
+      genParams: params,
     });
     console.log("[ GENERATED ]:", text);
 
@@ -140,12 +162,7 @@ export const hordeGenerate = async (req, res, genParams, config) => {
       text = `${config.characterBias}${text.trimStart()}`;
     }
 
-    const stoppingStrings = formatStoppingStrings({
-      user: config.user,
-      assistant: config.assistant,
-      stoppingStrings: config.stoppingStrings,
-    });
-    text = truncateGeneratedText(stoppingStrings, text, config);
+    text = truncateGeneratedText(config.formattedStoppingStrings, text, config);
   } catch (e) {
     error = e;
   }
@@ -167,15 +184,17 @@ export const hordeGenerate = async (req, res, genParams, config) => {
 
     res.end(buffer, "utf-8");
   } else {
-    if (error) {
-      console.error(error.stack);
-    }
-
-    const json = JSON.stringify({
-      choices: [{ delta: { content: text } }],
+    const streaming = stream.streamTokensToClient(req, res, {
+      ...config,
+      streamByCharacter: false,
     });
-    res.write(`data: ${json}\n\n`, "utf-8");
-    res.end("data: [DONE]\n\n", "utf-8");
+    if (error) {
+      stream.emit("error", error);
+    } else {
+      stream.write({ text, stop: true });
+    }
+    await streaming;
+    stream.end(req, res);
   }
 };
 
@@ -203,12 +222,7 @@ const koboldGenerateBlocking = async (req, res, genParams, config) => {
 
   console.log("[ GENERATED ]:", text);
 
-  const stoppingStrings = formatStoppingStrings({
-    user: config.user,
-    assistant: config.assistant,
-    stoppingStrings: config.stoppingStrings,
-  });
-  text = truncateGeneratedText(stoppingStrings, text, config);
+  text = truncateGeneratedText(config.formattedStoppingStrings, text, config);
 
   if (text && config.includeCharacterBiasInOutput) {
     text = `${config.characterBias}${
@@ -229,177 +243,139 @@ const koboldGenerateBlocking = async (req, res, genParams, config) => {
   res.end(buffer, "utf-8");
 };
 
-const oobaGenerateStream = (req, res, genParams, config) =>
-  new Promise((resolve) => {
-    const stoppingStrings = formatStoppingStrings({
-      user: config.user,
-      assistant: config.assistant,
-      stoppingStrings: config.stoppingStrings,
-    });
+const oobaGenerateStream = async (req, res, genParams, config) => {
+  let ws;
 
-    const ws = new WebSocket(config.oobaStreamUrl);
+  abort.abortPreviousRequest = () => {
+    abort.abortPreviousRequest = null;
+    ws?.close();
+  };
 
-    abort.abortPreviousRequest = () => {
-      abort.abortPreviousRequest = null;
-      ws.close();
-    };
+  const stream = new StreamTokens();
+  stream.sendSSEHeaders(req, res, config);
 
-    ws.onopen = () => {
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream; charset=utf-8",
-        Connection: "keep-alive",
-        "Cache-Control": "no-cache",
-        ...config.corsHeaders,
+  const getTokens = (stream) =>
+    new Promise((resolve, reject) => {
+      stream.on("end", () => {
+        ws?.close();
       });
-      res.flushHeaders();
-      workAroundTavernDelay(req, res);
 
-      ws.send(JSON.stringify(genParams));
-    };
+      ws = new WebSocket(config.oobaStreamUrl);
 
-    ws.onerror = (event) => {
-      console.error(`WebSocket error: ${event.message}`);
-      res.end("data: [DONE]\n\n", "utf-8");
-      ws.close();
-      resolve();
-    };
+      ws.onopen = () => {
+        ws.send(JSON.stringify(genParams));
+      };
 
-    ws.onclose = () => {
-      resolve();
-    };
-
-    let outputSent = false;
-    let textCheckStop = "";
-
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.event === "text_stream") {
-        process.stdout.write(data.text);
-        let text = data.text;
-
-        if (!outputSent && text && config.includeCharacterBiasInOutput) {
-          text = `${config.characterBias}${text.trimStart()}`;
-          outputSent = true;
-        }
-
-        textCheckStop += text;
-        textCheckStop = textCheckStop.substring(textCheckStop.length - 20);
-
-        // TODO: hold back sending the text if it starts to look like the stopping strings
-
-        const pos = findStoppingStringPosition(stoppingStrings, textCheckStop);
-        if (pos !== -1) {
-          res.end("data: [DONE]\n\n", "utf-8");
-          ws.close();
-        } else {
-          const json = JSON.stringify({
-            choices: [{ delta: { content: text } }],
-          });
-          res.write(`data: ${json}\n\n`, "utf-8");
-        }
-      } else if (data.event === "stream_end") {
-        console.log(data);
-        res.end("data: [DONE]\n\n", "utf-8");
+      ws.onerror = (event) => {
+        console.error(`WebSocket error: ${event.message}`);
+        reject(new Error(event.message));
         ws.close();
-      }
-    };
-  });
+      };
 
-const koboldGenerateStream = (req, res, genParams, config) =>
-  // eslint-disable-next-line no-async-promise-executor
-  new Promise(async (resolve) => {
-    let lengthToStream = genParams.max_length;
-    abort.abortPreviousRequest = () => {
-      abort.abortPreviousRequest = null;
+      ws.onclose = () => {
+        stream.write({ text: "", stop: true });
+        resolve();
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.event === "text_stream") {
+          process.stdout.write(data.text);
+          stream.write({ text: data.text, stop: false });
+        } else if (data.event === "stream_end") {
+          stream.write({ text: "", stop: true });
+          ws.close();
+        }
+      };
+    });
+
+  try {
+    const streaming = stream.streamTokensToClient(req, res, {
+      ...config,
+      streamByCharacter: false,
+    });
+
+    getTokens(stream).catch((error) => {
+      stream.emit("error", error);
+    });
+
+    await streaming;
+  } catch (error) {
+    console.error(error.stack);
+  } finally {
+    stream.end(req, res);
+  }
+};
+
+const koboldGenerateStream = async (req, res, genParams, config) => {
+  await koboldGenerateStreamUI2(req, res, genParams, config, abort);
+};
+
+const koboldGeneratePseudoStream = async (req, res, genParams, config) => {
+  let lengthToStream = genParams.max_length;
+
+  abort.abortPreviousRequest = () => {
+    abort.abortPreviousRequest = null;
+    lengthToStream = 0;
+  };
+
+  const stream = new StreamTokens();
+  stream.sendSSEHeaders(req, res, config);
+
+  const nextChunkLength = 8;
+  const params = { ...genParams, max_length: nextChunkLength };
+
+  const getTokens = async (stream) => {
+    stream.on("end", () => {
       lengthToStream = 0;
-    };
-
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream; charset=utf-8",
-      Connection: "keep-alive",
-      "Cache-Control": "no-cache",
-      ...config.corsHeaders,
-    });
-    res.flushHeaders();
-    workAroundTavernDelay(req, res);
-
-    const nextChunkLength =
-      config.backendType === "koboldcpp" ? 8 : genParams.max_length;
-
-    let generatedSoFar = "";
-
-    const params = { ...genParams, max_length: nextChunkLength };
-
-    const stoppingStrings = formatStoppingStrings({
-      user: config.user,
-      assistant: config.assistant,
-      stoppingStrings: config.stoppingStrings,
     });
 
-    try {
-      while (lengthToStream > 0) {
-        const resp = await fetch(`${config.koboldApiUrl}/api/v1/generate`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(params),
-        });
+    while (lengthToStream > 0) {
+      const resp = await fetch(`${config.koboldApiUrl}/api/v1/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      });
 
-        if (!resp.ok) {
-          const text = await resp.text();
-          console.error(`ERROR: ${text}`);
-          res.end("data: [DONE]\n\n", "utf-8");
-          return resolve();
-        }
-
-        let {
-          results: [{ text }],
-        } = await resp.json();
-
-        console.log("GENERATED:", text);
-        if (config.backendType !== "koboldcpp") {
-          text = truncateGeneratedText(stoppingStrings, text, config);
-        } else {
-          const pos = findStoppingStringPosition(stoppingStrings, text);
-          if (pos !== -1) {
-            const currentText = truncateGeneratedText(
-              stoppingStrings,
-              generatedSoFar + text,
-              config
-            );
-            text = currentText.substring(generatedSoFar.length);
-            lengthToStream = 0;
-          }
-          if (text === "") {
-            lengthToStream = 0;
-          }
-        }
-
-        let textToSend = text;
-        if (!generatedSoFar && text && config.includeCharacterBiasInOutput) {
-          textToSend = `${config.characterBias}${
-            config.backendType === "koboldcpp" ? text : text.trimStart()
-          }`;
-        }
-
-        const json = JSON.stringify({
-          choices: [{ delta: { content: textToSend } }],
-        });
-        res.write(`data: ${json}\n\n`, "utf-8");
-
-        lengthToStream -= nextChunkLength;
-        params.prompt += text;
-        generatedSoFar += text;
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(text);
       }
-    } catch (error) {
-      console.error(`Error during stream: ${error.message}`);
-    } finally {
-      res.end("data: [DONE]\n\n", "utf-8");
-      resolve();
+
+      let {
+        results: [{ text }],
+      } = await resp.json();
+
+      stream.write({ text, stop: false });
+      process.stdout.write(text);
+
+      lengthToStream -= nextChunkLength;
+      params.prompt += text;
     }
-  });
+
+    stream.write({ text: "", stop: true });
+  };
+
+  try {
+    const streaming = stream.streamTokensToClient(req, res, {
+      ...config,
+      findStoppingStrings: true,
+    });
+
+    getTokens(stream).catch((error) => {
+      stream.emit("error", error);
+    });
+
+    await streaming;
+  } catch (error) {
+    console.error(error.stack);
+  } finally {
+    stream.end(req, res);
+  }
+};
 
 const llamaCppPythonGenerateBlocking = async (req, res, genParams, config) => {
   abort.abortPreviousRequest = () => {
@@ -424,13 +400,7 @@ const llamaCppPythonGenerateBlocking = async (req, res, genParams, config) => {
   } = await resp.json();
 
   console.log("[ GENERATED ]:", text);
-
-  const stoppingStrings = formatStoppingStrings({
-    user: config.user,
-    assistant: config.assistant,
-    stoppingStrings: config.stoppingStrings,
-  });
-  text = truncateGeneratedText(stoppingStrings, text, config);
+  text = truncateGeneratedText(config.formattedStoppingStrings, text, config);
 
   if (text && config.includeCharacterBiasInOutput) {
     text = `${config.characterBias}${text}`;
@@ -475,61 +445,62 @@ const llamaCppPythonGenerateStream = async (req, res, genParams, config) => {
     throw new Error("The stream is locked. Please try again");
   }
 
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream; charset=utf-8",
-    Connection: "keep-alive",
-    "Cache-Control": "no-cache",
-    ...config.corsHeaders,
-  });
-  res.flushHeaders();
-  workAroundTavernDelay(req, res);
+  const stream = new StreamTokens();
+  stream.sendSSEHeaders(req, res, config);
 
-  await new Promise((resolve) => {
-    let outputSent = false;
+  const getTokens = (stream) =>
+    new Promise((resolve, reject) => {
+      stream.on("end", () => {
+        body.destroy();
+      });
 
-    body.on("data", (chunk) => {
-      const chunkStr = chunk.toString().replaceAll("\r\n", "\n");
-      const list = chunkStr.split("\n\n");
-      for (const current of list) {
-        if (!current.startsWith("data: ")) {
-          continue;
-        }
+      body.on("data", (chunk) => {
+        const chunkStr = chunk.toString().replaceAll("\r\n", "\n");
+        const list = chunkStr.split("\n\n");
 
-        let text;
-        try {
-          const data = JSON.parse(chunkStr.substring("data: ".length));
-          text = data.choices[0].text;
+        for (const current of list) {
+          if (!current.startsWith("data: ")) {
+            continue;
+          }
+
+          let text;
+          try {
+            const data = JSON.parse(chunkStr.substring("data: ".length));
+            text = data.choices[0].text;
+          } catch (error) {
+            console.log(chunkStr);
+            console.error(error.stack);
+            continue;
+          }
+
+          stream.write({ text, stop: false });
           process.stdout.write(text);
-        } catch (error) {
-          console.log(chunkStr);
-          console.error(error.stack);
-          continue;
         }
+      });
 
-        if (!outputSent && text && config.includeCharacterBiasInOutput) {
-          text = `${config.characterBias}${text}`;
-          outputSent = true;
-        }
+      body.on("error", (error) => {
+        reject(error);
+      });
 
-        const json = JSON.stringify({
-          choices: [{ delta: { content: text } }],
-        });
-        res.write(`data: ${json}\n\n`, "utf-8");
-      }
+      body.on("close", () => {
+        stream.write({ text: "", stop: true });
+        resolve();
+      });
     });
 
-    body.on("error", (error) => {
-      console.error(error.stack);
-      res.end("data: [DONE]\n\n", "utf-8");
-      resolve();
+  try {
+    const streaming = stream.streamTokensToClient(req, res, config);
+
+    getTokens(stream).catch((error) => {
+      stream.emit("error", error);
     });
 
-    body.on("close", () => {
-      console.log("", { event: "stream end" });
-      res.end("data: [DONE]\n\n", "utf-8");
-      resolve();
-    });
-  });
+    await streaming;
+  } catch (error) {
+    console.error(error.stack);
+  } finally {
+    stream.end(req, res);
+  }
 };
 
 const llamaCppGenerateBlocking = async (req, res, genParams, config) => {
@@ -555,12 +526,7 @@ const llamaCppGenerateBlocking = async (req, res, genParams, config) => {
 
   console.log("[ GENERATED ]:", text);
 
-  const stoppingStrings = formatStoppingStrings({
-    user: config.user,
-    assistant: config.assistant,
-    stoppingStrings: config.stoppingStrings,
-  });
-  text = truncateGeneratedText(stoppingStrings, text, config);
+  text = truncateGeneratedText(config.formattedStoppingStrings, text, config);
 
   if (text && config.includeCharacterBiasInOutput) {
     text = `${config.characterBias}${text}`;
@@ -596,23 +562,20 @@ const llamaCppGenerateStream = async (req, res, genParams, config) => {
   });
 
   if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(text);
+    throw new Error(await resp.text());
   }
 
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream; charset=utf-8",
-    Connection: "keep-alive",
-    "Cache-Control": "no-cache",
-    ...config.corsHeaders,
-  });
-  res.flushHeaders();
-  workAroundTavernDelay(req, res);
+  const stream = new StreamTokens();
+  stream.sendSSEHeaders(req, res, config);
 
-  try {
-    let outputSent = false;
+  const getTokens = async (stream) => {
+    let keepGoing = true;
 
-    for (;;) {
+    stream.on("end", () => {
+      keepGoing = false;
+    });
+
+    while (keepGoing) {
       const nextResponse = await fetch(
         `${config.llamaCppUrl}/next-token?${nextTokenParams}`,
         {
@@ -628,26 +591,27 @@ const llamaCppGenerateStream = async (req, res, genParams, config) => {
 
       const responseJson = await nextResponse.json();
       let { content: text, stop } = responseJson;
+
+      stream.write({ text, stop });
       process.stdout.write(text);
-
-      if (!outputSent && text && config.includeCharacterBiasInOutput) {
-        text = `${config.characterBias}${text}`;
-        outputSent = true;
-      }
-
-      const json = JSON.stringify({
-        choices: [{ delta: { content: text } }],
-      });
-      res.write(`data: ${json}\n\n`, "utf-8");
 
       if (stop) {
         break;
       }
     }
+  };
+
+  try {
+    const streaming = stream.streamTokensToClient(req, res, config);
+
+    getTokens(stream).catch((error) => {
+      stream.emit("error", error);
+    });
+
+    await streaming;
   } catch (error) {
     console.error(error.stack);
   } finally {
-    console.log("", { event: "stream end" });
-    res.end("data: [DONE]\n\n", "utf-8");
+    stream.end(req, res);
   }
 };

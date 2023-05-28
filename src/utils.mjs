@@ -115,3 +115,17 @@ export const getLastChatMessage = (prompt) =>
       msg.metadata?.type === "user-msg" ||
       msg.metadata?.type === "assistant-msg"
   );
+
+// https://gist.github.com/iwill/a83038623ba4fef6abb9efca87ae9ccb
+export const compareVersion = (a, b) => {
+  if (a.startsWith(b + "-")) {
+    return -1;
+  }
+  if (b.startsWith(a + "-")) {
+    return 1;
+  }
+  return a.localeCompare(b, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+};
