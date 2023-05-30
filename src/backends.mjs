@@ -99,9 +99,7 @@ export const llamaCppGenerate = async (req, res, genParams, config) => {
     prompt: genParams.prompt,
     n_predict: genParams.max_length,
     stop: genParams.stopping_strings,
-    as_loop: config.stream,
-    interactive: true,
-    reload_ctx: true,
+    stream: config.stream,
     temperature: genParams.temperature,
     top_p: genParams.top_p,
     top_k: genParams.top_k,
@@ -550,11 +548,11 @@ const llamaCppGenerateBlocking = async (req, res, genParams, config) => {
 };
 
 const llamaCppGenerateStream = async (req, res, genParams, config) => {
-  const nextTokenParams = new URLSearchParams();
+  let body;
 
   abort.abortPreviousRequest = () => {
     abort.abortPreviousRequest = null;
-    nextTokenParams.set("stop", "true");
+    body?.destroy();
   };
 
   const resp = await fetch(`${config.llamaCppUrl}/completion`, {
@@ -569,41 +567,53 @@ const llamaCppGenerateStream = async (req, res, genParams, config) => {
     throw new Error(await resp.text());
   }
 
+  body = resp.body;
+  if (body.locked) {
+    throw new Error("The stream is locked. Please try again");
+  }
+
   const stream = new StreamTokens();
   stream.sendSSEHeaders(req, res, config);
 
-  const getTokens = async (stream) => {
-    let keepGoing = true;
+  const getTokens = (stream) =>
+    new Promise((resolve, reject) => {
+      stream.on("end", () => {
+        body.destroy();
+      });
 
-    stream.on("end", () => {
-      keepGoing = false;
-    });
+      body.on("data", (chunk) => {
+        const chunkStr = chunk.toString().replaceAll("\r\n", "\n");
+        const list = chunkStr.split("\n\n");
 
-    while (keepGoing) {
-      const nextResponse = await fetch(
-        `${config.llamaCppUrl}/next-token?${nextTokenParams}`,
-        {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
+        for (const current of list) {
+          if (!current.startsWith("data: ")) {
+            continue;
+          }
+
+          let text, stop;
+          try {
+            const data = JSON.parse(chunkStr.substring("data: ".length));
+            ({ content: text = "", stop = false } = data);
+          } catch (error) {
+            console.log(chunkStr);
+            console.error(error.stack);
+            continue;
+          }
+
+          stream.write({ text, stop });
+          process.stdout.write(text || "");
         }
-      );
+      });
 
-      if (!nextResponse.ok) {
-        const errorText = await nextResponse.text();
-        throw new Error(errorText);
-      }
+      body.on("error", (error) => {
+        reject(error);
+      });
 
-      const responseJson = await nextResponse.json();
-      let { content: text, stop } = responseJson;
-
-      stream.write({ text, stop });
-      process.stdout.write(text);
-
-      if (stop) {
-        break;
-      }
-    }
-  };
+      body.on("close", () => {
+        stream.write({ text: "", stop: true });
+        resolve();
+      });
+    });
 
   try {
     const streaming = stream.streamTokensToClient(req, res, config);
