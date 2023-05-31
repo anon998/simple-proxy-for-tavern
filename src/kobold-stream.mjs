@@ -266,7 +266,7 @@ export const koboldGenerateStreamUI2 = async (
     desiredOptions.model.top_p = genParams.top_p;
     desiredOptions.model.typical = genParams.typical;
     desiredOptions.story.stop_sequence = genParams.stop_sequence;
-    if (genParams.sampler_seed > 0) {
+    if (genParams.sampler_seed >= 0) {
       desiredOptions.system.seed_specified = true;
       desiredOptions.system.seed = genParams.sampler_seed;
     } else {

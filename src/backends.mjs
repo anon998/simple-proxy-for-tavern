@@ -39,7 +39,7 @@ const koboldUpdateGenerationParameters = (genParams, config) => {
     delete params["stopping_strings"];
   }
 
-  if (config.seed) {
+  if (config.seed >= 0) {
     params.sampler_seed = config.seed;
   }
 
@@ -60,7 +60,7 @@ export const koboldGenerate = async (req, res, genParams, config) => {
 
 export const oobaGenerate = async (req, res, genParams, config) => {
   const params = { ...genParams };
-  if (config.seed !== null) {
+  if (config.seed >= 0) {
     params.seed = config.seed;
   }
 
@@ -112,6 +112,7 @@ export const llamaCppGenerate = async (req, res, genParams, config) => {
     mirostat: genParams.mirostat,
     mirostat_tau: genParams.mirostat_tau,
     mirostat_eta: genParams.mirostat_eta,
+    seed: config.seed >= 0 ? config.seed : undefined,
     ...config.llamaCppSettings,
   };
   console.log({ llamaCppParams: { ...params, prompt: "[...]" } });
