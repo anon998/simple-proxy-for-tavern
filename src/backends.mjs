@@ -48,6 +48,7 @@ const koboldUpdateGenerationParameters = (genParams, config) => {
 
 export const koboldGenerate = async (req, res, genParams, config) => {
   const params = koboldUpdateGenerationParameters(genParams, config);
+  console.log({ koboldParams: { ...params, prompt: "[...]" } });
 
   if (config.stream && config.backendType === "koboldcpp") {
     await koboldGeneratePseudoStream(req, res, params, config);
@@ -63,6 +64,7 @@ export const oobaGenerate = async (req, res, genParams, config) => {
   if (config.seed >= 0) {
     params.seed = config.seed;
   }
+  console.log({ oobaParams: { ...params, prompt: "[...]" } });
 
   if (config.stream) {
     await oobaGenerateStream(req, res, params, config);
@@ -83,6 +85,7 @@ export const llamaCppPythonGenerate = async (req, res, genParams, config) => {
     top_k: genParams.top_k,
     repeat_penalty: genParams.rep_pen,
   };
+  console.log({ llamaCppPythonParams: { ...params, prompt: "[...]" } });
 
   if (config.stream) {
     await llamaCppPythonGenerateStream(req, res, params, config);
