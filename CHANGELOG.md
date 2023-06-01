@@ -1,5 +1,12 @@
 # Change Log
 
+### 2023-05-31
+
+- Updated parameters and streaming for [llama.cpp api server](https://github.com/ggerganov/llama.cpp/tree/master/examples/server).
+- Changed to send the seed parameter when its value is >= 0.
+- Disabled searching and trimming stopping strings for backends that already do it well.
+- Added workaround for a SillyTavern extension that tries to send and parse a custom prompt.
+
 ### 2023-05-28
 
 - Added streaming and stopping strings for Kobold. Made the seed setting work on Kobold too.
