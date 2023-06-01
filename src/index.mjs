@@ -583,7 +583,9 @@ const startServer = () => {
     );
     console.log(`Using these URLs to find the backend:`);
     console.log(`- Kobold: ${config.koboldApiUrl} or :5001`);
-    console.log(`- Ooba stream: ${config.oobaStreamUrl}\n`);
+    console.log(`- Ooba stream: ${config.oobaStreamUrl}`);
+    console.log(`- llama-cpp-python: ${config.llamaCppPythonUrl}`);
+    console.log(`- llama.cpp API server: ${config.llamaCppUrl}\n`);
 
     if (config.horde.enable) {
       await updateHordeInfo();
