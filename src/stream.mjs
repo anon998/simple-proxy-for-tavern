@@ -106,7 +106,6 @@ export class StreamTokens extends EventEmitter {
     });
 
     const stoppingStrings = config.formattedStoppingStrings;
-    const findStoppingStrings = config.findStoppingStrings;
     const consecutivePartials = [];
 
     for await (const event of onEvent(this, "data", {
@@ -123,7 +122,10 @@ export class StreamTokens extends EventEmitter {
 
       let textToSend = "";
 
-      const posPartial = findPartialStoppingString(stoppingStrings, output);
+      const posPartial = config.findPartialStoppingStrings
+        ? findPartialStoppingString(stoppingStrings, output)
+        : -1;
+
       if (posPartial !== -1) {
         textToSend = output
           .substring(0, posPartial)
@@ -134,7 +136,7 @@ export class StreamTokens extends EventEmitter {
       }
 
       // this is for koboldcpp
-      if (findStoppingStrings) {
+      if (config.findStoppingStrings) {
         let stringToTest = consecutivePartials.join("") + text;
         let pos = findStoppingStringPosition(stoppingStrings, stringToTest);
         if (pos !== -1) {

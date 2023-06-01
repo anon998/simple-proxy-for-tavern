@@ -321,7 +321,11 @@ export const koboldGenerateStreamUI2 = async (
       }
     });
 
-    const streaming = stream.streamTokensToClient(req, res, config);
+    const streaming = stream.streamTokensToClient(req, res, {
+      ...config,
+      findStoppingStrings: false,
+      findPartialStoppingStrings: true,
+    });
 
     const waitingForGenerationStart = waitForGenerationState(socket, {
       koboldState,
