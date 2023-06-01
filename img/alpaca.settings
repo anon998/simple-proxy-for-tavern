@@ -3,7 +3,8 @@
   "temperature": 0.9,
   "frequency_penalty": 0.7,
   "presence_penalty": 0.7,
-  "openai_max_context": 4095,
+  "top_p": 1,
+  "openai_max_context": 8192,
   "openai_max_tokens": 300,
   "nsfw_toggle": true,
   "enhance_definitions": false,
@@ -11,7 +12,11 @@
   "nsfw_first": false,
   "main_prompt": "",
   "nsfw_prompt": "",
-  "jailbreak_prompt": "{{char}}|{{user}}",
+  "jailbreak_prompt": "{{char}}|{{user}}\n",
   "jailbreak_system": true,
-  "impersonation_prompt": "IMPERSONATION_PROMPT"
+  "impersonation_prompt": "IMPERSONATION_PROMPT\n",
+  "reverse_proxy": "http://127.0.0.1:29172/v1",
+  "legacy_streaming": false,
+  "max_context_unlocked": true,
+  "nsfw_avoidance_prompt": ""
 }
