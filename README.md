@@ -6,7 +6,7 @@ This script sits between SillyTavern and a backend like Kobold and it lets you c
 
 The LLaMA tokenizer needs a modern Node.js version to work. Use the latest **LTS** version of [Node.js](https://nodejs.org).
 
-You need a local backend like [KoboldAI](https://github.com/0cc4m/KoboldAI), [koboldcpp](https://github.com/LostRuins/koboldcpp) or [Ooba in API mode](https://github.com/oobabooga/text-generation-webui) to load the model, but it also works with the [Horde](http://koboldai.net/), where people volunteer to share their GPUs online.
+You need a local backend like [KoboldAI](https://github.com/0cc4m/KoboldAI), [koboldcpp](https://github.com/LostRuins/koboldcpp), [llama.cpp](https://github.com/ggerganov/llama.cpp) or [Ooba in API mode](https://github.com/oobabooga/text-generation-webui) to load the model, but it also works with the [Horde](http://koboldai.net/), where people volunteer to share their GPUs online.
 
 ## Table of Contents
 
@@ -65,8 +65,6 @@ There's also a _replyAttributes_ variable that, by default, alters the prompt to
 If you want to always keep the example messages of the character in the prompt, you have to edit _keepExampleMessagesInPrompt_ in conf.mjs while also enabling the option in the Tavern UI.
 
 The last prompt is saved as **prompt.txt**. You can use it to check that everything is okay with the way the prompt is generated.
-
-Streaming works for ooba and koboldcpp. Kobold doesn't support streaming or stopping strings.
 
 Ooba needs to be started with --extensions api and the streaming API was added Apr 23, 2023.
 
