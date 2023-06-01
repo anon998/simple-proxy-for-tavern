@@ -25,6 +25,7 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
   const silentMessage = replaceTemplates(config.silentMessage, config);
 
   let impersonationPromptFound = false;
+  let extensionPrompt = null;
 
   const userName = (args = {}) => getNameString({ ...args, name: user });
   const assistantName = (args = {}) =>
@@ -116,6 +117,12 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
       });
     } else if (metadata.type === "impersonation-prompt") {
       impersonationPromptFound = true;
+    } else if (metadata.type === "extension-prompt") {
+      extensionPrompt = {
+        ...msg,
+        prunable: false,
+        content: `${beforeSystem}${content}${afterSystem}`,
+      };
     } else if (metadata.type === "assistant-msg") {
       prompt.push({
         ...msg,
@@ -195,6 +202,10 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
 
   if (impersonationPromptFound) {
     generationConfig.max_new_tokens = config.impersonationMaxNewTokens;
+  }
+
+  if (extensionPrompt) {
+    prompt.push(extensionPrompt);
   }
 
   return prompt;

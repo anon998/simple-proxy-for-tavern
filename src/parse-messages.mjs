@@ -1,3 +1,6 @@
+const extensionObjectivePrompt =
+  "Pause your roleplay. Determine if this task is completed:";
+
 const findCharacterNames = ({ messages }) => {
   let assistant = "Bot";
   let user = "You";
@@ -12,7 +15,10 @@ const findCharacterNames = ({ messages }) => {
     msg = messages[msgIndex];
 
     if (msg.role === "system") {
-      if (msg.content.startsWith("IMPERSONATION_PROMPT")) {
+      if (
+        msg.content.startsWith("IMPERSONATION_PROMPT") ||
+        msg.content.startsWith(extensionObjectivePrompt)
+      ) {
         msgIndex -= 1;
         msg = messages[msgIndex];
       }
@@ -146,6 +152,8 @@ const addMetadataToMessages = (messages, config) => {
         if (tmp) {
           updatedConfig.impersonationPrompt = tmp;
         }
+      } else if (content.startsWith(extensionObjectivePrompt)) {
+        metadata.type = "extension-prompt";
       } else if (name === "example_assistant") {
         metadata.type = "example-assistant";
         metadata.chatIndex = newChatCount - 1;
