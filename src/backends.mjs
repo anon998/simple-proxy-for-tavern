@@ -296,6 +296,8 @@ const oobaGenerateStream = async (req, res, genParams, config) => {
     const streaming = stream.streamTokensToClient(req, res, {
       ...config,
       streamByCharacter: false,
+      findPartialStoppingStrings: true,
+      findStoppingStrings: true,
     });
 
     getTokens(stream).catch((error) => {
@@ -492,11 +494,7 @@ const llamaCppPythonGenerateStream = async (req, res, genParams, config) => {
     });
 
   try {
-    const streaming = stream.streamTokensToClient(req, res, {
-      ...config,
-      findStoppingStrings: false,
-      findPartialStoppingStrings: true,
-    });
+    const streaming = stream.streamTokensToClient(req, res, config);
 
     getTokens(stream).catch((error) => {
       stream.emit("error", error);

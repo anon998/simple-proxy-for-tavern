@@ -323,7 +323,7 @@ export const koboldGenerateStreamUI2 = async (
 
     const streaming = stream.streamTokensToClient(req, res, {
       ...config,
-      findStoppingStrings: false,
+      findStoppingStrings: true,
       findPartialStoppingStrings: true,
     });
 
