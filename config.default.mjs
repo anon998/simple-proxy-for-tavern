@@ -38,8 +38,9 @@ export default {
   // https://github.com/ggerganov/llama.cpp/tree/master/examples/server#api-endpoints
   llamaCppSettings: {
     n_keep: -1,
-    // batch_size: 128,
-    // threads: 6,
+    // n_predict: -1
+    // ignore_eos: false
+    // logit_bias: [[528, 4.0]]
   },
 
   // if it should stream by character or not
