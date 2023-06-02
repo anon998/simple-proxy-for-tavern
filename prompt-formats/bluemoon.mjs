@@ -1,6 +1,7 @@
 import {
   addStoppingStrings,
   getLastChatMessage,
+  isLlamaCpp,
   popLastAssistantMessage,
   popLastChatMessages,
   replaceTemplates,
@@ -33,7 +34,7 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
   const beforeUser = "\n\nLEAD: ";
   const afterUser = "\n";
   const beforeAssistant = "\n\nASSOCIATE: ";
-  const afterAssistant = config.backendType === "koboldcpp" ? "\n" : "</s>\n";
+  const afterAssistant = isLlamaCpp(config.backendType) ? "\n" : "</s>\n";
 
   let prompt = [];
   if (systemPrompt) {

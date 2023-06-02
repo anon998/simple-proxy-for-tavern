@@ -129,3 +129,6 @@ export const compareVersion = (a, b) => {
     sensitivity: "base",
   });
 };
+
+export const isLlamaCpp = (backend) =>
+  ["koboldcpp", "llama.cpp", "llama-cpp-python"].indexOf(backend) !== -1;
