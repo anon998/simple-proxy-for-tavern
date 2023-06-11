@@ -15,6 +15,30 @@ export const abort = {
   waitingForPreviousRequest: null,
 };
 
+const parseSSE = (msgBuffer) => {
+  const eventList = msgBuffer.split("\n\n");
+  const partial = eventList.pop();
+  const messages = [];
+
+  for (const event of eventList) {
+    for (const part of event.split("\n")) {
+      if (!part.startsWith("data: ")) {
+        continue;
+      }
+
+      try {
+        const data = JSON.parse(part.substring("data: ".length));
+        messages.push(data);
+      } catch (error) {
+        console.log(event);
+        console.error(error.stack);
+      }
+    }
+  }
+
+  return { msgBuffer: partial, messages };
+};
+
 const koboldUpdateGenerationParameters = (genParams, config) => {
   const params = { ...genParams };
 
@@ -51,9 +75,16 @@ export const koboldGenerate = async (req, res, genParams, config) => {
   console.log({ koboldParams: { ...params, prompt: "[...]" } });
 
   if (config.stream && config.backendType === "koboldcpp") {
-    await koboldGeneratePseudoStream(req, res, params, config);
+    if (compareVersion(config.backendVersion ?? "0.0", "1.29") > 0) {
+      console.log("KoboldCPP > 1.29, using SSE streaming");
+      await koboldCppGenerateStream(req, res, params, config);
+    } else {
+      console.log("KoboldCPP <= 1.29, using pseudo-streaming");
+      await koboldGeneratePseudoStream(req, res, params, config);
+    }
   } else if (config.stream) {
-    await koboldGenerateStream(req, res, params, config);
+    console.log("Using UI2 hack to stream with Kobold");
+    await koboldGenerateStreamUI2(req, res, params, config);
   } else {
     await koboldGenerateBlocking(req, res, params, config);
   }
@@ -312,10 +343,6 @@ const oobaGenerateStream = async (req, res, genParams, config) => {
   }
 };
 
-const koboldGenerateStream = async (req, res, genParams, config) => {
-  await koboldGenerateStreamUI2(req, res, genParams, config, abort);
-};
-
 const koboldGeneratePseudoStream = async (req, res, genParams, config) => {
   let lengthToStream = genParams.max_length;
 
@@ -369,6 +396,78 @@ const koboldGeneratePseudoStream = async (req, res, genParams, config) => {
       findStoppingStrings: true,
       findPartialStoppingStrings: true,
     });
+
+    getTokens(stream).catch((error) => {
+      stream.emit("error", error);
+    });
+
+    await streaming;
+  } catch (error) {
+    console.error(error.stack);
+  } finally {
+    stream.end(req, res);
+  }
+};
+
+const koboldCppGenerateStream = async (req, res, genParams, config) => {
+  abort.abortPreviousRequest = () => {
+    abort.abortPreviousRequest = null;
+
+    fetch(`${config.koboldApiUrl}/api/extra/abort`, { method: "POST" })
+      .then((resp) => resp.text())
+      .then((text) => console.log(`KoboldCPP abort result: ${text}`))
+      .catch((error) => {
+        console.error(error.stack);
+      });
+  };
+
+  const resp = await fetch(`${config.koboldApiUrl}/api/extra/generate/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(genParams),
+  });
+
+  if (!resp.ok) {
+    throw new Error(await resp.text());
+  }
+
+  const body = resp.body;
+  const stream = new StreamTokens();
+  stream.sendSSEHeaders(req, res, config);
+
+  const getTokens = (stream) =>
+    new Promise((resolve, reject) => {
+      let msgBuffer = "";
+      let messages = [];
+
+      stream.on("end", () => {
+        body.destroy();
+      });
+
+      body.on("data", (chunk) => {
+        ({ msgBuffer, messages } = parseSSE(msgBuffer + chunk.toString()));
+
+        for (const data of messages) {
+          const { token: text = "" } = data;
+          stream.write({ text, stop: false });
+          process.stdout.write(text || "");
+        }
+      });
+
+      body.on("error", (error) => {
+        reject(error);
+      });
+
+      body.on("close", () => {
+        stream.write({ text: "", stop: true });
+        resolve();
+      });
+    });
+
+  try {
+    const streaming = stream.streamTokensToClient(req, res, config);
 
     getTokens(stream).catch((error) => {
       stream.emit("error", error);
@@ -455,29 +554,19 @@ const llamaCppPythonGenerateStream = async (req, res, genParams, config) => {
 
   const getTokens = (stream) =>
     new Promise((resolve, reject) => {
+      let msgBuffer = "";
+      let messages = [];
+
       stream.on("end", () => {
         body.destroy();
       });
 
       body.on("data", (chunk) => {
         const chunkStr = chunk.toString().replaceAll("\r\n", "\n");
-        const list = chunkStr.split("\n\n");
+        ({ msgBuffer, messages } = parseSSE(msgBuffer + chunkStr));
 
-        for (const current of list) {
-          if (!current.startsWith("data: ")) {
-            continue;
-          }
-
-          let text;
-          try {
-            const data = JSON.parse(chunkStr.substring("data: ".length));
-            text = data.choices[0].text;
-          } catch (error) {
-            console.log(chunkStr);
-            console.error(error.stack);
-            continue;
-          }
-
+        for (const data of messages) {
+          const text = data?.choices?.[0]?.text ?? "";
           stream.write({ text, stop: false });
           process.stdout.write(text);
         }
@@ -580,29 +669,18 @@ const llamaCppGenerateStream = async (req, res, genParams, config) => {
 
   const getTokens = (stream) =>
     new Promise((resolve, reject) => {
+      let msgBuffer = "";
+      let messages = [];
+
       stream.on("end", () => {
         body.destroy();
       });
 
       body.on("data", (chunk) => {
-        const chunkStr = chunk.toString().replaceAll("\r\n", "\n");
-        const list = chunkStr.split("\n\n");
+        ({ msgBuffer, messages } = parseSSE(msgBuffer + chunk.toString()));
 
-        for (const current of list) {
-          if (!current.startsWith("data: ")) {
-            continue;
-          }
-
-          let text, stop;
-          try {
-            const data = JSON.parse(chunkStr.substring("data: ".length));
-            ({ content: text = "", stop = false } = data);
-          } catch (error) {
-            console.log(chunkStr);
-            console.error(error.stack);
-            continue;
-          }
-
+        for (const data of messages) {
+          const { content: text = "", stop = false } = data;
           stream.write({ text, stop });
           process.stdout.write(text || "");
         }

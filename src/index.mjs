@@ -145,6 +145,7 @@ const getBackendType = async () => {
           }
 
           result.backendType = "koboldcpp";
+          result.backendVersion = json.version;
           return result;
         }
       }
