@@ -410,15 +410,18 @@ const koboldGeneratePseudoStream = async (req, res, genParams, config) => {
 };
 
 const koboldCppGenerateStream = async (req, res, genParams, config) => {
-  abort.abortPreviousRequest = () => {
-    abort.abortPreviousRequest = null;
-
+  const koboldCppAbortStream = () => {
     fetch(`${config.koboldApiUrl}/api/extra/abort`, { method: "POST" })
       .then((resp) => resp.text())
       .then((text) => console.log(`KoboldCPP abort result: ${text}`))
       .catch((error) => {
         console.error(error.stack);
       });
+  };
+
+  abort.abortPreviousRequest = () => {
+    abort.abortPreviousRequest = null;
+    koboldCppAbortStream();
   };
 
   const resp = await fetch(`${config.koboldApiUrl}/api/extra/generate/stream`, {
@@ -433,7 +436,7 @@ const koboldCppGenerateStream = async (req, res, genParams, config) => {
     throw new Error(await resp.text());
   }
 
-  const body = resp.body;
+  let body = resp.body;
   const stream = new StreamTokens();
   stream.sendSSEHeaders(req, res, config);
 
@@ -443,7 +446,9 @@ const koboldCppGenerateStream = async (req, res, genParams, config) => {
       let messages = [];
 
       stream.on("end", () => {
-        body.destroy();
+        if (body) {
+          koboldCppAbortStream();
+        }
       });
 
       body.on("data", (chunk) => {
@@ -462,12 +467,17 @@ const koboldCppGenerateStream = async (req, res, genParams, config) => {
 
       body.on("close", () => {
         stream.write({ text: "", stop: true });
+        body = null;
         resolve();
       });
     });
 
   try {
-    const streaming = stream.streamTokensToClient(req, res, config);
+    const streaming = stream.streamTokensToClient(req, res, {
+      ...config,
+      findStoppingStrings: true,
+      findPartialStoppingStrings: true,
+    });
 
     getTokens(stream).catch((error) => {
       stream.emit("error", error);
