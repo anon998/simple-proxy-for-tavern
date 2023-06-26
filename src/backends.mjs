@@ -84,7 +84,7 @@ export const koboldGenerate = async (req, res, genParams, config) => {
     }
   } else if (config.stream) {
     console.log("Using UI2 hack to stream with Kobold");
-    await koboldGenerateStreamUI2(req, res, params, config);
+    await koboldGenerateStreamUI2(req, res, params, config, abort);
   } else {
     await koboldGenerateBlocking(req, res, params, config);
   }
