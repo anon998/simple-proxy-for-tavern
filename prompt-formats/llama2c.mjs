@@ -117,7 +117,7 @@ export default ({ user, assistant, messages, config, generationConfig }) => {
       prompt.push({
         ...msg,
         prunable: true,
-        content: `${beforeUser}${userName()}${content}${afterUser}[/INST]`,
+        content: `${beforeUser}${userName()}${content}${afterUser}`,
       });
     }
   }
