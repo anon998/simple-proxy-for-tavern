@@ -160,7 +160,10 @@ Write ${assistant}'s next reply in a fictional chat between ${assistant} and ${u
   });
 
   for (const msg of lastMessages) {
-    prompt.push(msg);
+    prompt.push({
+      ...msg,
+      prunable: false,
+    });
   }
 
   if (impersonationPromptFound || last?.role === "user" || silentMessage) {
